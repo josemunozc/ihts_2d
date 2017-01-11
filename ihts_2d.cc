@@ -2,7 +2,9 @@
 #include <deal.II/base/function.h>
 #include <deal.II/base/logstream.h>
 #include <deal.II/base/tensor_function.h>
+#include <deal.II/base/multithread_info.h>
 #include <deal.II/base/conditional_ostream.h>
+#include <deal.II/base/mpi.h>
 #include <deal.II/base/utilities.h>
 #include <deal.II/base/timer.h>
 #include <deal.II/base/smartpointer.h>
@@ -19,10 +21,10 @@
 #include <deal.II/lac/precondition.h>
 //#include <deal.II/lac/compressed_simple_sparsity_pattern.h>
 
-#include <deal.II/lac/petsc_vector.h>
+//#include <deal.II/lac/petsc_vector.h>
 #include <deal.II/lac/petsc_parallel_vector.h>
 #include <deal.II/lac/petsc_parallel_sparse_matrix.h>
-#include <deal.II/lac/petsc_sparse_matrix.h>
+//#include <deal.II/lac/petsc_sparse_matrix.h>
 #include <deal.II/lac/petsc_solver.h>
 #include <deal.II/lac/petsc_precondition.h>
 
@@ -79,24 +81,18 @@ namespace TRL
     void run();
   private:
     void output_results();
-    void fill_output_vectors(/*const std::vector<double> collector_heat_flux_new,
-			       const std::vector<double> storage_heat_flux_new*/);
+     void fill_output_vectors();
     void update_met_data();
-    void execute_pipe_system();
-    /*--------------------temperature functions-------------------------*/
+    // /*--------------------temperature functions-------------------------*/
     void read_mesh_temperature();
-    void refine_grid();
     void initial_condition_temperature();
     void setup_system_temperature();
     void assemble_system_petsc_temperature();
-    void assemble_system_parallel_temperature(unsigned int step,
-					      bool system_switch);
+    void assemble_system_parallel_temperature(bool system_switch);
     unsigned int solve_temperature();
-    /*--------------------temperature on surfaces----------------------*/
-    void temperatures_on_pipes_1d();
+    // /*--------------------temperature on surfaces----------------------*/
     void surface_temperatures();
     void mesh_info();
-    void mesh_info_pipes();
     /*-----------------------temperature variables--------------------*/
     Triangulation<dim>   triangulation_temperature;
     DoFHandler<dim>      dof_handler_temperature;
@@ -143,6 +139,7 @@ namespace TRL
     std::string author;
     std::string preheating_output_filename;
     std::string preheating_input_filename;
+    std::string input_path;
     bool fixed_bc_at_bottom;
     bool pipe_system;
     bool preheating;
@@ -154,15 +151,15 @@ namespace TRL
     double thermal_conductivity_factor;
     int type_of_weather;
     
-    static const unsigned int number_of_pipes=40;
-    static const unsigned int n_boundary_ids=8;
-    static const unsigned int boundary_id_collector=1;
-    static const unsigned int boundary_id_storage=2;
-    static const unsigned int boundary_id_collector_lids=1;
-    static const unsigned int boundary_id_storage_lids=2;
-    static const unsigned int boundary_id_road=3;
-    static const unsigned int boundary_id_soil=4;
-    static const unsigned int boundary_id_soil_bottom=5;
+    static constexpr unsigned int number_of_pipes=40;
+    static constexpr unsigned int n_boundary_ids=8;
+    static constexpr unsigned int boundary_id_collector=1;
+    static constexpr unsigned int boundary_id_storage=2;
+    static constexpr unsigned int boundary_id_collector_lids=1;
+    static constexpr unsigned int boundary_id_storage_lids=2;
+    static constexpr unsigned int boundary_id_road=3;
+    static constexpr unsigned int boundary_id_soil=4;
+    static constexpr unsigned int boundary_id_soil_bottom=5;
     /*----------------------mesh data vectors--------------------*/
     std::map<typename DoFHandler<dim>::active_cell_iterator,unsigned int >
     cell_index_to_face_index,    // relate cells at boundary with corresponding face at boundary
@@ -218,10 +215,10 @@ namespace TRL
     double current_new_min_soil_surface_temperature;
     double current_new_min_road_surface_temperature;
     
-    static const double collector_depth=0.1325;
-    static const double storage_depth  =0.8475;
+    static constexpr double collector_depth=0.1325;
+    static constexpr double storage_depth  =0.8475;
     /*------------ vectors for output data --------------*/
-    static const unsigned int number_of_surface_heat_and_mass_fluxes=11;
+    static constexpr unsigned int number_of_surface_heat_and_mass_fluxes=11;
     static const Point<dim> stores_centers[2];
     Point<dim> borehole_A_depths[35];
     Point<dim> borehole_F_depths[35];
@@ -265,8 +262,8 @@ namespace TRL
     */
     time_step           (3600),
     theta_temperature   (0.5),
-    activation_type     ("automatic_activation"),
     surface_type        ("soil"),
+    activation_type     ("automatic_activation"),
     canopy_density      (0.85),
     refine_mesh         (false),
     moisture_movement   (false),
@@ -281,7 +278,7 @@ namespace TRL
     pcout.set_condition(this_mpi_process==0);
     std::string shading_factor_value_str;
     std::string thermal_conductivity_factor_str;
-    int number_of_arguments=10;
+    int number_of_arguments=11;
     
     if (argc==number_of_arguments)
       {
@@ -306,6 +303,7 @@ namespace TRL
 	std::string pipe_system_str=argv[7];
 	shading_factor_value_str=argv[8];
 	thermal_conductivity_factor_str=argv[9];
+	input_path=argv[10];
 	
 	if ((strcmp(author.c_str(),author_options[0].c_str())!=0) &&
 	    (strcmp(author.c_str(),author_options[1].c_str())!=0) &&
@@ -350,7 +348,7 @@ namespace TRL
 	  pipe_system=false;
 	else
 	  {
-	    std::cout << "wrong pipe system condition\n";
+	    pcout << "wrong pipe system condition\n";
 	    throw -1;
 	  }
 	
@@ -388,7 +386,7 @@ namespace TRL
 	  }
 	else
 	  {
-	    std::cout << "Error. Wrong type of weather.\n";
+	    pcout << "Error. Wrong type of weather.\n";
 	    throw -1;
 	  }
 	
@@ -396,7 +394,7 @@ namespace TRL
 	if (shading_factor_value>1. ||
 	    shading_factor_value<0.)
 	  {
-	    std::cout << "wrong shading factor value\n";
+	    pcout << "wrong shading factor value\n";
 	    throw -1;
 	  }
 	
@@ -404,7 +402,7 @@ namespace TRL
 	if (thermal_conductivity_factor<0. ||
 	    thermal_conductivity_factor>2.)
 	  {
-	    std::cout << "wrong thermal conductivity factor value\n";
+	    pcout << "wrong thermal conductivity factor value\n";
 	    throw -1;
 	  }
       }
@@ -631,12 +629,17 @@ namespace TRL
     else
       pcout << "No input preheating file defined\n";
 
+
+    DataTools data_tools;
+    if (!data_tools.dir_exists(input_path))
+      std::cout << "Error. Inputh path: " << input_path << "doesn't exists.\n";
+    else
+      pcout << "Input path: " << input_path << std::endl;
     
     // for (unsigned int i=0; i<(sizeof borehole_A_depths)/(sizeof borehole_A_depths[0]); i++)
     //   borehole_A_depths[i](0,0);
     // 	//borehole_A_depths[i](Tensor<1,dim,double>());
-    Names names/*(preheating_step,
-		 met_data_type);*/;
+    Names names(input_path);
     std::vector<double> borehole_depths;
     names.get_depths(borehole_depths,
 		     "road");
@@ -678,112 +681,112 @@ namespace TRL
   template<int dim>
   void Heat_Pipe<dim>::read_mesh_temperature()
   {
-	  std::string filename;
-	  if (dim==3)
-		  filename="./input/meshes/trl_final_4_merged.msh";
-	  else if (dim==2)
-		  filename="./input/meshes/trl_mesh_in_2d.msh";
-	  else
-	  {
-		  std::cout << "Error in read_mesh_temperature. "
-				  << "Case not implemented." << std::endl;
-		  throw -1;
-	  }
-	  
-	  DataTools data_tools;
-	  if (data_tools.file_exists(filename)==false)
-	  {
-		  std::cout << "Error file: " << filename << " does not exists!"
-				  << std::endl;
-		  throw -1;
-	  }
-	  else
-	  {
-		  std::cout << "Reading mesh from: " << filename << std::endl;
-	  }
-
-	  GridIn<dim> grid_in;
-	  grid_in.attach_triangulation(triangulation_temperature);
-	  std::ifstream file (filename.c_str());
-	  grid_in.read_msh (file);
-  }
-  //**************************************************************************************
-  //--------------------------------------------------------------------------------------
-  //**************************************************************************************
-  template <int dim>
-  void Heat_Pipe<dim>::refine_grid ()
-  {
-    // const PETScWrappers::Vector localized_old_solution (backup_solution_temperature);
-    // Vector<float> local_error_per_cell (triangulation_temperature.n_active_cells()); 
-    
-    // KellyErrorEstimator<dim>::estimate (dof_handler_temperature,
-    // 					QGauss<dim-1>(3),
-    // 					typename FunctionMap<dim>::type(),
-    // 					localized_old_solution,
-    // 					local_error_per_cell,
-    // 					ComponentMask(),
-    // 					0,
-    // 					multithread_info.n_default_threads,
-    // 					this_mpi_process);
-    
-    // const unsigned int n_local_cells
-    //   = GridTools::count_cells_with_subdomain_association (triangulation_temperature,
-    // 							   this_mpi_process);
-    // PETScWrappers::MPI::Vector
-    //   distributed_all_errors (mpi_communicator,
-    // 			      triangulation_temperature.n_active_cells(),
-    // 			      n_local_cells);
-    
-    // for (unsigned int i=0; i<local_error_per_cell.size(); ++i)
-    //   if (local_error_per_cell(i)!=0)
-    // 	distributed_all_errors(i)=local_error_per_cell(i);
-    // distributed_all_errors.compress(VectorOperation::insert);
-    
-    // local_error_per_cell=distributed_all_errors;
-    /*--------------------------------------------------------------------*/
-    /*
-      Refine grid adaptatively based on the previous estimated errors
-    */
-    SolutionTransfer< dim,PETScWrappers::Vector/*,DoFHandler<dim>*/ > 
-      solution_transfer(dof_handler_temperature);
-    
-    std::vector<PETScWrappers::Vector> transfer_in(2);
-    transfer_in[0]=old_solution_temperature;
-    transfer_in[1]=    solution_temperature;
-    
-    // GridRefinement::refine_and_coarsen_fixed_number (triangulation_temperature,
-    // 						     local_error_per_cell,
-    // 						     0.35, 0.03);
-    typename Triangulation<dim>::active_cell_iterator
-      cell = triangulation_temperature.begin_active(),
-      endc = triangulation_temperature.end();
-    for (; cell!=endc; ++cell)
+    std::string filename;
+    if (dim==3)
+      filename=input_path+"/meshes/trl_final_4_merged.msh";
+    else if (dim==2)
+      filename=input_path+"/meshes/trl_mesh_in_2d.msh";
+    else
       {
-	if ((cell->material_id()==10)||
-	    (cell->material_id()==11)||
-	    (cell->material_id()==12)||
-	    (cell->material_id()==13))
-	  cell->set_refine_flag();
+	pcout << "Error in read_mesh_temperature. "
+		  << "Case not implemented." << std::endl;
+	throw -1;
+      }
+	  
+    DataTools data_tools;
+    if (data_tools.file_exists(filename)==false)
+      {
+	pcout << "Error file: " << filename << " does not exists!"
+		  << std::endl;
+	throw -1;
+      }
+    else
+      {
+	pcout << "Reading mesh from: " << filename << std::endl;
       }
     
-    triangulation_temperature
-      .prepare_coarsening_and_refinement();
-    solution_transfer
-      .prepare_for_coarsening_and_refinement (transfer_in);
-    
-    triangulation_temperature.execute_coarsening_and_refinement ();
-    
-    setup_system_temperature ();
-	  
-    std::vector<PETScWrappers::Vector> transfer_out (2); 
-    transfer_out[0].reinit(dof_handler_temperature.n_dofs());
-    transfer_out[1].reinit(dof_handler_temperature.n_dofs());
-	  
-    solution_transfer.interpolate (transfer_in, transfer_out);
-    
-    old_solution_temperature=transfer_out[0];
-    solution_temperature=transfer_out[1];
+    GridIn<dim> grid_in;
+    grid_in.attach_triangulation(triangulation_temperature);
+    std::ifstream file (filename.c_str());
+    grid_in.read_msh (file);
   }
+//   //**************************************************************************************
+//   //--------------------------------------------------------------------------------------
+//   //**************************************************************************************
+//   template <int dim>
+//   void Heat_Pipe<dim>::refine_grid ()
+//   {
+//     // const PETScWrappers::Vector localized_old_solution (backup_solution_temperature);
+//     // Vector<float> local_error_per_cell (triangulation_temperature.n_active_cells()); 
+    
+//     // KellyErrorEstimator<dim>::estimate (dof_handler_temperature,
+//     // 					QGauss<dim-1>(3),
+//     // 					typename FunctionMap<dim>::type(),
+//     // 					localized_old_solution,
+//     // 					local_error_per_cell,
+//     // 					ComponentMask(),
+//     // 					0,
+//     // 					multithread_info.n_default_threads,
+//     // 					this_mpi_process);
+    
+//     // const unsigned int n_local_cells
+//     //   = GridTools::count_cells_with_subdomain_association (triangulation_temperature,
+//     // 							   this_mpi_process);
+//     // PETScWrappers::MPI::Vector
+//     //   distributed_all_errors (mpi_communicator,
+//     // 			      triangulation_temperature.n_active_cells(),
+//     // 			      n_local_cells);
+    
+//     // for (unsigned int i=0; i<local_error_per_cell.size(); ++i)
+//     //   if (local_error_per_cell(i)!=0)
+//     // 	distributed_all_errors(i)=local_error_per_cell(i);
+//     // distributed_all_errors.compress(VectorOperation::insert);
+    
+//     // local_error_per_cell=distributed_all_errors;
+//     /*--------------------------------------------------------------------*/
+//     /*
+//       Refine grid adaptatively based on the previous estimated errors
+//     */
+//     SolutionTransfer< dim,PETScWrappers::Vector/*,DoFHandler<dim>*/ > 
+//       solution_transfer(dof_handler_temperature);
+    
+//     std::vector<PETScWrappers::Vector> transfer_in(2);
+//     transfer_in[0]=old_solution_temperature;
+//     transfer_in[1]=    solution_temperature;
+    
+//     // GridRefinement::refine_and_coarsen_fixed_number (triangulation_temperature,
+//     // 						     local_error_per_cell,
+//     // 						     0.35, 0.03);
+//     typename Triangulation<dim>::active_cell_iterator
+//       cell = triangulation_temperature.begin_active(),
+//       endc = triangulation_temperature.end();
+//     for (; cell!=endc; ++cell)
+//       {
+// 	if ((cell->material_id()==10)||
+// 	    (cell->material_id()==11)||
+// 	    (cell->material_id()==12)||
+// 	    (cell->material_id()==13))
+// 	  cell->set_refine_flag();
+//       }
+    
+//     triangulation_temperature
+//       .prepare_coarsening_and_refinement();
+//     solution_transfer
+//       .prepare_for_coarsening_and_refinement (transfer_in);
+    
+//     triangulation_temperature.execute_coarsening_and_refinement ();
+    
+//     setup_system_temperature ();
+	  
+//     std::vector<PETScWrappers::Vector> transfer_out (2); 
+//     transfer_out[0].reinit(dof_handler_temperature.n_dofs());
+//     transfer_out[1].reinit(dof_handler_temperature.n_dofs());
+	  
+//     solution_transfer.interpolate (transfer_in, transfer_out);
+    
+//     old_solution_temperature=transfer_out[0];
+//     solution_temperature=transfer_out[1];
+//   }
   //**************************************************************************************
   //--------------------------------------------------------------------------------------
   //**************************************************************************************
@@ -866,7 +869,7 @@ namespace TRL
     mass_matrix_temperature.vmult(tmp,old_solution_temperature);
     tmp.compress(VectorOperation::insert);
 
-    system_rhs_temperature.add(tmp);
+    system_rhs_temperature+=tmp;
     system_rhs_temperature.compress(VectorOperation::add);
 
     laplace_matrix_old_temperature.vmult(tmp,old_solution_temperature);
@@ -877,10 +880,10 @@ namespace TRL
  
     system_matrix_temperature = 0.;
     system_matrix_temperature.compress(VectorOperation::insert);
-    system_matrix_temperature.add(mass_matrix_temperature,1.0);
+    system_matrix_temperature.add(1.0,mass_matrix_temperature);
     system_matrix_temperature.compress(VectorOperation::add);
 
-    system_matrix_temperature.add(laplace_matrix_new_temperature,theta_temperature*time_step);
+    system_matrix_temperature.add(theta_temperature*time_step,laplace_matrix_new_temperature);
     system_matrix_temperature.compress(VectorOperation::add);
 
     if (fixed_bc_at_bottom)
@@ -924,7 +927,7 @@ namespace TRL
   //--------------------------------------------------------------------------------------
   //**************************************************************************************
   template<int dim>
-  void Heat_Pipe<dim>::assemble_system_parallel_temperature(unsigned int step,
+  void Heat_Pipe<dim>::assemble_system_parallel_temperature(/*unsigned int step,*/
 							    bool system_switch)
   {
     mass_matrix_temperature       =0.;
@@ -1009,7 +1012,7 @@ namespace TRL
 		}
 	  for (unsigned int face=0; face<GeometryInfo<dim>::faces_per_cell; ++face)
 	    {                                                                               
-	      face_boundary_indicator = cell->face(face)->boundary_indicator();
+	      face_boundary_indicator = cell->face(face)->boundary_id();
 	      /*
 		We enter this section if we found a cell face that represents a boundary.
 		Then we will calculate the corresponding heat flux according to the 
@@ -1032,8 +1035,8 @@ namespace TRL
 		    represented in a similar way (after the radiative coefficients have
 		    been linearized).
 		  */
-		  double inbound_convective_coefficient_new=0;
-		  double inbound_convective_coefficient_old=0;
+		  //double inbound_convective_coefficient_new=0;
+		  //double inbound_convective_coefficient_old=0;
 		  double outbound_convective_coefficient_new=0;
 		  double outbound_convective_coefficient_old=0;
 		  double inbound_heat_flux_new=0.;
@@ -1342,7 +1345,7 @@ namespace TRL
     PETScWrappers::PreconditionBlockJacobi preconditioner(system_matrix_temperature);
     solver.solve(system_matrix_temperature,solution_temperature,
 		 system_rhs_temperature,preconditioner);
-    PETScWrappers::Vector localized_solution(solution_temperature);
+    Vector<double> localized_solution(solution_temperature);
     constraints_temperature.distribute(localized_solution);
     solution_temperature=localized_solution;
     solution_temperature.compress(VectorOperation::insert);
@@ -1354,118 +1357,118 @@ namespace TRL
   template<int dim>
   void Heat_Pipe<dim>::output_results()
   {
-	  const PETScWrappers::Vector localized_solution (solution_temperature);
+    const Vector<double> localized_solution (solution_temperature);
 
-	  if (this_mpi_process==0)
+    if (this_mpi_process==0)
+      {
+	std::string dirpath="./output";
+	DataTools data_tools;
+	if (data_tools.dir_exists(dirpath)==false)
 	  {
-		  std::string dirpath="./output";
-		  DataTools data_tools;
-		  if (data_tools.dir_exists(dirpath)==false)
-		  {
-			  std::cout << "Error directory: " << dirpath << " does not exists!"
-					  << std::endl;
-			  throw -1;
-		  }
-		  else
-		  {
-			  std::cout << "Writing output to: " << dirpath << std::endl;
-		  }
-
-
-		  std::stringstream t;
-		  t << timestep_number;
-		  std::string filename = "./output/solution_" + preheating_output_filename
-				  +"_timestep-" + t.str();
-
-		  DataOut<dim> data_out;
-		  data_out.attach_dof_handler (dof_handler_temperature);
-
-		  std::vector<std::string> solution_names;
-		  solution_names.push_back ("temperature");
-
-		  data_out.add_data_vector (localized_solution,solution_names);
-		  /*
-		   * Add information about in which mpi process is each cell being processed
-		   * */
-		  std::vector<unsigned int>
-		  partition_int(triangulation_temperature.n_active_cells());
-		  GridTools::get_subdomain_association
-		  (triangulation_temperature, partition_int);
-		  const Vector<double> partitioning (partition_int.begin (),
-				  partition_int.end ());
-		  data_out.add_data_vector (partitioning, "partitioning");
-		  /*
-		   * Add information about whats the material on each cell
-		   * and thermal properties
-		   * */
-		  MaterialData material_data (dim,insulation,/*moisture content*/0.23,moisture_movement);
-		  std::vector<unsigned int> material_id_int;
-		  std::vector<double> thermal_conductivity_int;
-		  std::vector<double> specific_heat_capacity_int;
-		  std::vector<double> density_int;
-		  std::vector<double> thermal_diffusivity_int;
-
-		  std::vector<unsigned int> boundaries;
-		  typename DoFHandler<dim>::active_cell_iterator
-		  cell = dof_handler_temperature.begin_active(),
-		  endc = dof_handler_temperature.end();
-		  for (; cell!=endc; ++cell)
-		  {
-			  material_id_int.push_back(cell->material_id());
-
-			  if ((cell->center()[0]< 6.0) &&   // insulation edge
-					  (cell->center()[0]>-6.0) &&   // insulation edge
-					  (cell->center()[1]<-0.725) && // insulation depth
-					  (cell->center()[1]>-9.0) &&   // assumed thermal penetration
-					  (preheating_step>=4) &&
-					  cell->material_id()==14) // soil material id
-				  thermal_conductivity_int.push_back(thermal_conductivity_factor*
-						  material_data.get_soil_thermal_conductivity(cell->material_id()));
-			  else
-				  thermal_conductivity_int.push_back(material_data.get_soil_thermal_conductivity(cell->material_id()));
-
-			  //thermal_conductivity_int.push_back  (material_data.get_soil_thermal_conductivity(cell->material_id()));
-			  specific_heat_capacity_int.push_back(material_data.get_soil_heat_capacity       (cell->material_id()));
-			  density_int.push_back               (material_data.get_soil_density             (cell->material_id()));
-			  thermal_diffusivity_int.push_back   (material_data.get_soil_thermal_diffusivity (cell->material_id()));
-
-			  if (cell_index_to_previous_new_surface_temperature.find(cell)!=
-					  cell_index_to_previous_new_surface_temperature.end())
-				  boundaries.push_back(cell->face(cell_index_to_face_index[cell])->boundary_indicator());
-			  else
-				  boundaries.push_back(0);
-		  }
-		  const Vector<double> material_id           (material_id_int.begin(),
-				  material_id_int.end());
-		  const Vector<double> thermal_conductivity  (thermal_conductivity_int.begin(),
-				  thermal_conductivity_int.end());
-		  const Vector<double> specific_heat_capacity(specific_heat_capacity_int.begin(),
-				  specific_heat_capacity_int.end());
-		  const Vector<double> density               (density_int.begin(),
-				  density_int.end());
-		  const Vector<double> thermal_diffusivity   (thermal_diffusivity_int.begin(),
-				  thermal_diffusivity_int.end());
-		  const Vector<double> boundary_id           (boundaries.begin(),
-				  boundaries.end());
-
-		  data_out.add_data_vector (material_id           ,"material_id");
-		  data_out.add_data_vector (thermal_conductivity  ,"thermal_conductivity");
-		  data_out.add_data_vector (specific_heat_capacity,"specific_heat_capacity");
-		  data_out.add_data_vector (density               ,"density");
-		  data_out.add_data_vector (thermal_diffusivity   ,"thermal_diffusivity");
-		  data_out.add_data_vector (boundary_id   ,"boundary_id");
-
-		  data_out.build_patches ();
-		  if (dim==1)
-			  filename = filename + ".gp";
-		  if (dim==3 || dim==2)
-			  filename = filename + ".vtu";
-		  std::ofstream output (filename.c_str());
-		  if (dim==1)
-			  data_out.write_gnuplot (output);
-		  if (dim==3 || dim==2)
-			  data_out.write_vtu (output);
+	    std::cout << "Error directory: " << dirpath << " does not exists!"
+		      << std::endl;
+	    throw -1;
 	  }
+	else
+	  {
+	    std::cout << "Writing output to: " << dirpath << std::endl;
+	  }
+
+
+	std::stringstream t;
+	t << timestep_number;
+	std::string filename = "./output/solution_" + preheating_output_filename
+	  +"_timestep-" + t.str();
+
+	DataOut<dim> data_out;
+	data_out.attach_dof_handler (dof_handler_temperature);
+
+	std::vector<std::string> solution_names;
+	solution_names.push_back ("temperature");
+
+	data_out.add_data_vector (localized_solution,solution_names);
+	/*
+	 * Add information about in which mpi process is each cell being processed
+	 * */
+	std::vector<unsigned int>
+	  partition_int(triangulation_temperature.n_active_cells());
+	GridTools::get_subdomain_association
+	  (triangulation_temperature, partition_int);
+	const Vector<double> partitioning (partition_int.begin (),
+					   partition_int.end ());
+	data_out.add_data_vector (partitioning, "partitioning");
+	/*
+	 * Add information about whats the material on each cell
+	 * and thermal properties
+	 * */
+	MaterialData material_data (dim,insulation,/*moisture content*/0.23,moisture_movement);
+	std::vector<unsigned int> material_id_int;
+	std::vector<double> thermal_conductivity_int;
+	std::vector<double> specific_heat_capacity_int;
+	std::vector<double> density_int;
+	std::vector<double> thermal_diffusivity_int;
+
+	std::vector<unsigned int> boundaries;
+	typename DoFHandler<dim>::active_cell_iterator
+	  cell = dof_handler_temperature.begin_active(),
+	  endc = dof_handler_temperature.end();
+	for (; cell!=endc; ++cell)
+	  {
+	    material_id_int.push_back(cell->material_id());
+
+	    if ((cell->center()[0]< 6.0) &&   // insulation edge
+		(cell->center()[0]>-6.0) &&   // insulation edge
+		(cell->center()[1]<-0.725) && // insulation depth
+		(cell->center()[1]>-9.0) &&   // assumed thermal penetration
+		(preheating_step>=4) &&
+		cell->material_id()==14) // soil material id
+	      thermal_conductivity_int.push_back(thermal_conductivity_factor*
+						 material_data.get_soil_thermal_conductivity(cell->material_id()));
+	    else
+	      thermal_conductivity_int.push_back(material_data.get_soil_thermal_conductivity(cell->material_id()));
+
+	    //thermal_conductivity_int.push_back  (material_data.get_soil_thermal_conductivity(cell->material_id()));
+	    specific_heat_capacity_int.push_back(material_data.get_soil_heat_capacity       (cell->material_id()));
+	    density_int.push_back               (material_data.get_soil_density             (cell->material_id()));
+	    thermal_diffusivity_int.push_back   (material_data.get_soil_thermal_diffusivity (cell->material_id()));
+
+	    if (cell_index_to_previous_new_surface_temperature.find(cell)!=
+		cell_index_to_previous_new_surface_temperature.end())
+	      boundaries.push_back(cell->face(cell_index_to_face_index[cell])->boundary_id());
+	    else
+	      boundaries.push_back(0);
+	  }
+	const Vector<double> material_id           (material_id_int.begin(),
+						    material_id_int.end());
+	const Vector<double> thermal_conductivity  (thermal_conductivity_int.begin(),
+						    thermal_conductivity_int.end());
+	const Vector<double> specific_heat_capacity(specific_heat_capacity_int.begin(),
+						    specific_heat_capacity_int.end());
+	const Vector<double> density               (density_int.begin(),
+						    density_int.end());
+	const Vector<double> thermal_diffusivity   (thermal_diffusivity_int.begin(),
+						    thermal_diffusivity_int.end());
+	const Vector<double> boundary_id           (boundaries.begin(),
+						    boundaries.end());
+
+	data_out.add_data_vector (material_id           ,"material_id");
+	data_out.add_data_vector (thermal_conductivity  ,"thermal_conductivity");
+	data_out.add_data_vector (specific_heat_capacity,"specific_heat_capacity");
+	data_out.add_data_vector (density               ,"density");
+	data_out.add_data_vector (thermal_diffusivity   ,"thermal_diffusivity");
+	data_out.add_data_vector (boundary_id   ,"boundary_id");
+
+	data_out.build_patches ();
+	if (dim==1)
+	  filename = filename + ".gp";
+	if (dim==3 || dim==2)
+	  filename = filename + ".vtu";
+	std::ofstream output (filename.c_str());
+	if (dim==1)
+	  data_out.write_gnuplot (output);
+	if (dim==3 || dim==2)
+	  data_out.write_vtu (output);
+      }
   }
   //**************************************************************************************
   //--------------------------------------------------------------------------------------
@@ -1475,8 +1478,7 @@ namespace TRL
   {
     const Vector<double> localized_solution_temperature(old_solution_temperature);
 
-    Names names/*(preheating_step,
-		 met_data_type);*/;
+    Names names(input_path);
     std::vector<double>borehole_depths;
     names.get_depths(borehole_depths,
 		     "road");
@@ -1581,11 +1583,11 @@ namespace TRL
   	if (cell->face(face)->at_boundary())
   	  {
   	    unsigned int boundary_id
-	      =cell->face(face)->boundary_indicator();
+	      =cell->face(face)->boundary_id();
   	    Point<dim> cell_center
 	      =cell->face(face)->center();
-	    double coordinate_x
-	      =cell_center[0];
+	    // double coordinate_x
+	    //   =cell_center[0];
   	    /*
   	      We shouldn't have any boundary with 0 indicator index. If
   	      we found any, print it.
@@ -1630,7 +1632,7 @@ namespace TRL
 			double r=0.;
 			r=(0.25/2 + (double)i*0.25);
 			
-			bool cell_found=false;
+			//bool cell_found=false;
 			double dr=0.;
 			if (dim==3 && y>42.)
 			  dr=r*(1.-cos(22.5*(numbers::PI/180.)));
@@ -1723,7 +1725,7 @@ namespace TRL
       FEFaceValues<dim>   fe_face_values(*fe_temperature, face_quadrature_formula,
 					 update_values | update_gradients |
 					 update_quadrature_points | update_JxW_values);
-      const PETScWrappers::Vector localized_new_solution(solution_temperature);
+      const Vector<double> localized_new_solution(solution_temperature);
       /*Calculate temperature*/
       for (typename std::map<typename DoFHandler<dim>::active_cell_iterator,unsigned int>::iterator
   	     it=cell_index_to_face_index.begin(); 
@@ -1781,7 +1783,7 @@ namespace TRL
   	  unsigned int face
 	    =cell_index_to_face_index[it->first];
   	  unsigned int boundary_id
-  	    =it->first->face(face)->boundary_indicator();
+  	    =it->first->face(face)->boundary_id();
 
   	  if (boundary_id==boundary_id_soil)
   	    {
@@ -1920,7 +1922,8 @@ namespace TRL
 				     met_data,
 				     time_step,
 				     preheating_step,
-				     met_data_type);
+				     met_data_type,
+				     input_path);
 	  }
 	pcout << "\tAvailable met lines: " << met_data.size() 
 	      << std::endl << std::endl;
@@ -2003,9 +2006,9 @@ namespace TRL
     {
       TimerOutput::Scope timer_section(timer,"Mesh info");
       mesh_info();
-//      refine_grid();
-//      pcout << "\n\n";
-//      mesh_info();
+      //      refine_grid();
+      //      pcout << "\n\n";
+      //      mesh_info();
     }
     /*
       It looks like the system was active whenever the temperature difference between
@@ -2023,12 +2026,12 @@ namespace TRL
 
     double old_control_temperature_collector=10.;
 
-    double previous_new_collector_max_norm=0.;
-    double previous_new_storage___max_norm=0.;
+    //double previous_new_collector_max_norm=0.;
+    //double previous_new_storage___max_norm=0.;
     double previous_new_collector_avg_norm=0.;
     double previous_new_storage___avg_norm=0.;
-    double previous_new_collector_min_norm=0.;
-    double previous_new_storage___min_norm=0.;
+    //double previous_new_collector_min_norm=0.;
+    //double previous_new_storage___min_norm=0.;
 
     double current__new_collector_max_norm=0.;
     double current__new_storage___max_norm=0.;
@@ -2069,8 +2072,8 @@ namespace TRL
       step, initial time and many other variables are defined in the constructor
     */
     for (timestep_number=1, time=time_step;
-	 timestep_number<=timestep_number_max;
-	 timestep_number++, time+=time_step)
+    	 timestep_number<=timestep_number_max;
+    	 timestep_number++, time+=time_step)
       { 
     	/*
      	 * Update meteorological data
@@ -2179,7 +2182,7 @@ namespace TRL
 	      soil_heat_fluxes[timestep_number-1][i]=0.;
 	    {
 	      TimerOutput::Scope timer_section (timer,"Assemble temperature");
-	      assemble_system_parallel_temperature(step,switch_control);
+	      assemble_system_parallel_temperature(/*step,*/switch_control);
 	      assemble_system_petsc_temperature();
 	    }
 	    {
@@ -2190,7 +2193,7 @@ namespace TRL
 	    double avg_collector_outlets=0.;
 	    double avg_storage____inlets=0.;
 	    double avg_storage___outlets=0.;
-	    {
+ 	    {
 	      TimerOutput::Scope timer_section (timer,"Update surface temperatures");
 	      previous_new_soil_avg_surface_temperature
 		=current_new_avg_soil_surface_temperature;
@@ -2205,20 +2208,20 @@ namespace TRL
 	      previous_new_road_min_surface_temperature
 		=current_new_min_road_surface_temperature;
 
-	      previous_new_collector_max_norm
-		=current__new_collector_max_norm;
-	      previous_new_storage___max_norm
-		=current__new_storage___max_norm;
+	      // previous_new_collector_max_norm
+	      // 	=current__new_collector_max_norm;
+	      // previous_new_storage___max_norm
+	      // 	=current__new_storage___max_norm;
 	      previous_new_collector_avg_norm
 		=current__new_collector_avg_norm;
 	      previous_new_storage___avg_norm
 		=current__new_storage___avg_norm;
-	      previous_new_collector_min_norm
-		=current__new_collector_min_norm;
-	      previous_new_storage___min_norm
-		=current__new_storage___min_norm;
+	      // previous_new_collector_min_norm
+	      // 	=current__new_collector_min_norm;
+	      // previous_new_storage___min_norm
+	      // 	=current__new_storage___min_norm;
 		      
-	      surface_temperatures();
+ 	      surface_temperatures();
 
 	    current__new_collector_max_norm=0.;
 	    current__new_collector_avg_norm=0.;
@@ -2253,7 +2256,7 @@ namespace TRL
 		    avg_storage___outlets
 		      +=max_pipe_temperature[(number_of_pipes/4)+(number_of_pipes/2)+i]/(number_of_pipes/4);
 		  }
-	      }
+ 	      }
 	      /*define tolerances*/
 	    tolerance_soil_avg_surface_temperature
 		=fabs(current_new_avg_soil_surface_temperature
@@ -2274,25 +2277,25 @@ namespace TRL
 //		=fabs(current_new_min_road_surface_temperature
 //				-previous_new_road_min_surface_temperature);
 
-//	    tolerance_collector_max_norm
-//		=fabs(current__new_collector_max_norm
-//				-previous_new_collector_max_norm);
-//	    tolerance_storage___max_norm
-//		=fabs(current__new_storage___max_norm
-//				-previous_new_storage___max_norm);
+	    // tolerance_collector_max_norm
+	    // 	=fabs(current__new_collector_max_norm
+	    // 			-previous_new_collector_max_norm);
+	    // tolerance_storage___max_norm
+	    // 	=fabs(current__new_storage___max_norm
+	    // 			-previous_new_storage___max_norm);
 	    tolerance_collector_avg_norm
-		=fabs(current__new_collector_avg_norm
-				-previous_new_collector_avg_norm);
+	    	=fabs(current__new_collector_avg_norm
+	    			-previous_new_collector_avg_norm);
 	    tolerance_storage___avg_norm
-		=fabs(current__new_storage___avg_norm
-				-previous_new_storage___avg_norm);
-//	    tolerance_collector_min_norm
-//		=fabs(current__new_collector_min_norm
-//				-previous_new_collector_min_norm);
-//	    tolerance_storage___min_norm
-//		=fabs(current__new_storage___min_norm
-//				-previous_new_storage___min_norm);
-	    }
+	    	=fabs(current__new_storage___avg_norm
+	    			-previous_new_storage___avg_norm);
+	    // tolerance_collector_min_norm
+	    // 	=fabs(current__new_collector_min_norm
+	    // 			-previous_new_collector_min_norm);
+	    // tolerance_storage___min_norm
+	    // 	=fabs(current__new_storage___min_norm
+	    // 			-previous_new_storage___min_norm);
+ 	    }
 	    //==========================================================================================
 	    // /*-----solve pipe system ------*/
 	    if (step==0)
@@ -2404,7 +2407,7 @@ namespace TRL
 		    pcout << "Error. Wrong activation type\n";
 		    throw -1;
 		  }
-	      }
+ 	      }
 
 	    if ((pipe_system==true)&&
 		(switch_control==true))
@@ -2470,7 +2473,7 @@ namespace TRL
 	      	      << "\ts " << std::setw(7) << std::setfill(' ') << std::setprecision(2) << step
 		      << std::endl;
 	  }
-	{
+ 	{
 	  /*
 	    Output the solution at the beggining, end and every
 	    certain time steps in this case every:
@@ -2596,7 +2599,7 @@ namespace TRL
 			if (file.is_open())
 			  throw 3;
 		      }
-		  }
+ 		  }
 		  // Print preheating files
 		  {
 		    std::ofstream file_temperature (preheating_output_filename.c_str());			
@@ -2607,15 +2610,15 @@ namespace TRL
 		    if (file_temperature.is_open())
 		      throw 3;
 		  }
-		}
-	    }
-	}
+ 		}
+ 	    }
+ 	}
 	/*
 	  update old solution to the current solution
 	  update everything that need to be updated
 	*/
-	{
-	  old_solution_temperature=solution_temperature;
+ 	{
+ 	  old_solution_temperature=solution_temperature;
 
 	  cell_index_to_old_surface_temperature
 	    =cell_index_to_current__new_surface_temperature;
@@ -2651,11 +2654,10 @@ namespace TRL
 //	  old_storage___avg_norm
 //	    =current__new_storage___avg_norm;
 
-
 	  previous_switch_control=switch_control;
 	  old_control_temperature_collector
 	    =new_control_temperature_collector;
-	}
+ 	}
       }
     /*
       Nothing better than a job well done (hopefully)
@@ -2678,7 +2680,7 @@ int main(int argc, char **argv)
       const unsigned int dim=2;
       
       //PetscInitialize(&argc,&argv,0,0);
-      Utilities::MPI::MPI_InitFinalize mpi_initialization(argc,argv);
+      Utilities::MPI::MPI_InitFinalize mpi_initialization(argc,argv,1);
       // for (unsigned int i=0; i<argc; i++)
       // 	std::cout << argv[i] << "\t";
       // std::cout << "\n";
