@@ -151,15 +151,15 @@ namespace TRL
     double thermal_conductivity_factor;
     int type_of_weather;
     
-    static constexpr unsigned int number_of_pipes=40;
-    static constexpr unsigned int n_boundary_ids=8;
-    static constexpr unsigned int boundary_id_collector=1;
-    static constexpr unsigned int boundary_id_storage=2;
-    static constexpr unsigned int boundary_id_collector_lids=1;
-    static constexpr unsigned int boundary_id_storage_lids=2;
-    static constexpr unsigned int boundary_id_road=3;
-    static constexpr unsigned int boundary_id_soil=4;
-    static constexpr unsigned int boundary_id_soil_bottom=5;
+    const unsigned int number_of_pipes;//=40;
+    const unsigned int n_boundary_ids;//=8;
+    const unsigned int boundary_id_collector;//=1;
+    const unsigned int boundary_id_storage;//=2;
+    const unsigned int boundary_id_collector_lids;//=1;
+    const unsigned int boundary_id_storage_lids;//=2;
+    const unsigned int boundary_id_road;//=3;
+    const unsigned int boundary_id_soil;//=4;
+    const unsigned int boundary_id_soil_bottom;//=5;
     /*----------------------mesh data vectors--------------------*/
     std::map<typename DoFHandler<dim>::active_cell_iterator,unsigned int >
     cell_index_to_face_index,    // relate cells at boundary with corresponding face at boundary
@@ -191,7 +191,6 @@ namespace TRL
     std::vector<int> cell_faces_per_pipe;
 
     std::vector<double> old_pipe_heat_flux;
-    //std::vector<double> previous_new_pipe_heat_flux;
     std::vector<double> current__new_pipe_heat_flux;
 
     double old_avg_soil_surface_temperature;
@@ -215,11 +214,11 @@ namespace TRL
     double current_new_min_soil_surface_temperature;
     double current_new_min_road_surface_temperature;
     
-    static constexpr double collector_depth=0.1325;
-    static constexpr double storage_depth  =0.8475;
+    const double collector_depth;//=0.1325;
+    const double storage_depth;//  =0.8475;
     /*------------ vectors for output data --------------*/
-    static constexpr unsigned int number_of_surface_heat_and_mass_fluxes=11;
-    static const Point<dim> stores_centers[2];
+    const unsigned int number_of_surface_heat_and_mass_fluxes;//=11;
+    //static const Point<dim> stores_centers[2];
     Point<dim> borehole_A_depths[35];
     Point<dim> borehole_F_depths[35];
     Point<dim> borehole_H_depths[35];
@@ -260,20 +259,32 @@ namespace TRL
       4th              900          8060        system on
       5th              900          8060        system on
     */
-    time_step           (3600),
-    theta_temperature   (0.5),
-    surface_type        ("soil"),
-    activation_type     ("automatic_activation"),
-    canopy_density      (0.85),
-    refine_mesh         (false),
-    moisture_movement   (false),
-    max_pipe_temperature(number_of_pipes,-1.e6),
-    new_avg_pipe_temperature(number_of_pipes,0.),
-    old_avg_pipe_temperature(number_of_pipes,0.),
-    min_pipe_temperature(number_of_pipes,1.e6),
-    cell_faces_per_pipe(number_of_pipes,0),
-    old_pipe_heat_flux(number_of_pipes,0),
-    current__new_pipe_heat_flux(number_of_pipes,0)
+    time_step        (3600),
+    theta_temperature(0.5),
+    surface_type     ("soil"),
+    activation_type  ("automatic_activation"),
+    canopy_density   (0.85),
+    refine_mesh      (false),
+    moisture_movement(false),
+    number_of_pipes  (40),
+    n_boundary_ids            (8),
+    boundary_id_collector     (1),
+    boundary_id_storage       (2),
+    boundary_id_collector_lids(1),
+    boundary_id_storage_lids  (2),
+    boundary_id_road          (3),
+    boundary_id_soil          (4),
+    boundary_id_soil_bottom   (5),
+    max_pipe_temperature       (number_of_pipes,-1.e6),
+    new_avg_pipe_temperature   (number_of_pipes,0.),
+    old_avg_pipe_temperature   (number_of_pipes,0.),
+    min_pipe_temperature       (number_of_pipes,1.e6),
+    cell_faces_per_pipe        (number_of_pipes,0),
+    old_pipe_heat_flux         (number_of_pipes,0),
+    current__new_pipe_heat_flux(number_of_pipes,0),
+    collector_depth            (0.1325),
+    storage_depth              (0.8475),
+    number_of_surface_heat_and_mass_fluxes(11)
   {
     pcout.set_condition(this_mpi_process==0);
     std::string shading_factor_value_str;
@@ -664,11 +675,11 @@ namespace TRL
       }
   }
       
-  template<int dim>
-  const Point<dim> 
-  Heat_Pipe<dim>::stores_centers[2]
-  = { Point<dim> (0.,-1.*collector_depth),
-      Point<dim> (0.,-1.*storage_depth)};
+  // template<int dim>
+  // const Point<dim> 
+  // Heat_Pipe<dim>::stores_centers[2]
+  // = { Point<dim> (0.,-1.*collector_depth),
+  //     Point<dim> (0.,-1.*storage_depth)};
   
   template<int dim>
   Heat_Pipe<dim>::~Heat_Pipe ()
