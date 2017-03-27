@@ -502,7 +502,7 @@ namespace TRL
     
     if (preheating_step==1 && time_step==3600)
       {
-	timestep_number_max=70079; // 8 years
+	timestep_number_max=3;//70079; // 8 years
 	initial_date.reserve(6);
 	initial_date.push_back(1);
 	initial_date.push_back(9);
@@ -1144,12 +1144,12 @@ namespace TRL
 			{
 			  new_canopy_temperature = 
 			    boundary_condition_new
-			    .get_canopy_temperature (local_surface_type,
+			    .get_canopy_temperature (/*local_surface_type,*/
 						     local_author,
 						     canopy_density);
 			  old_canopy_temperature = 
 			    boundary_condition_old
-			    .get_canopy_temperature (local_surface_type,
+			    .get_canopy_temperature (/*local_surface_type,*/
 						     local_author,
 						     canopy_density);
 			}
