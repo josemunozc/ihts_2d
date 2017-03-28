@@ -11,7 +11,7 @@ SHADING_FACTOR=0.40
 BOTTOM_BC=fr
 BOTTOM_BC_BOOL=false
 
-MAINDIR=$HOME/git/ihts_2d
+MAINDIR=$HOME/git/ihts_2d/
 INPUTPATH=$HOME/input
 MESH=trl_mesh_in_2d.msh
 
