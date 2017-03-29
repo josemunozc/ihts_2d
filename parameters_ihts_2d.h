@@ -23,6 +23,8 @@ struct AllParameters
 	std::string author;
 	std::string weather_type;
 	std::string input_path;
+	std::string mesh_filename;
+	std::string mesh_dirname;
 
 	unsigned int preheating_step;
 
@@ -80,7 +82,7 @@ AllParameters<dim>::declare_parameters (ParameterHandler &prm)
 	     prm.enter_subsection("options");
 	     {
 	    	 prm.declare_entry("author", "Best",
-	    			 Patterns::Anything(),
+	    			 Patterns::Selection("Best|Herb|Fixed"),
 					 "The author defines the theoretical framework used "
 					 "at the soil boundary condition for heat transfer.");
 
@@ -101,21 +103,21 @@ AllParameters<dim>::declare_parameters (ParameterHandler &prm)
 					 "road surface. The shading factor is defined by "
 					 "shading_factor.");
 
-	    	 prm.declare_entry("fixed bc at bottom", false,
+	    	 prm.declare_entry("fixed bc at bottom", "false",
 	    			 Patterns::Bool(),
 					 "Defines the state of the boundary condition at the "
 					 "domain's bottom, currently two possibilities are "
 					 "implemented: free, and fixed (fixed values is defined) "
 					 "by fixed_bottom_bc.");
 
-	    	 prm.declare_entry("with insulation", false,
+	    	 prm.declare_entry("with insulation", "false",
 	    			 Patterns::Bool(),
 					 "Defines if the insulation layer above the storage "
 					 "region should be used, if not, regular soil thermal "
 					 "properties are used (i.e. the soil that composes most "
 					 "the domain.");
 
-	    	 prm.declare_entry("with pipe system", false,
+	    	 prm.declare_entry("with pipe system", "false",
 	    			 Patterns::Bool(),
 					 "Defines if the pipe system should be active during "
 					 "the current activation period.");
@@ -143,19 +145,27 @@ AllParameters<dim>::declare_parameters (ParameterHandler &prm)
 
 	    	 prm.declare_entry("thermal conductivity factor", "1.0",
 	    			 Patterns::Double(0.1,2.0), "Defines the weighting factor for the "
-	    					 "thermal conductivity in the storage region. This "
-	    					 "is the region defined as (in 2D): -6m<x<6m, -0.75m>y>-9m. "
-	    					 "The thermal conductivity is multiplied by this factor so "
-	    					 "that: 1.0 (no change in base thermal conductivity), "
-	    					 "0.9 (90% of base thermal conductivity). This factor only "
-	    					 "affects the soil material and is currently implemented for "
-	    					 "activation periods >=4. and for changes between 10% -- 200%.");
+					 "thermal conductivity in the storage region. This "
+					 "is the region defined as (in 2D): -6m<x<6m, -0.75m>y>-9m. "
+					 "The thermal conductivity is multiplied by this factor so "
+					 "that: 1.0 (no change in base thermal conductivity), "
+					 "0.9 (90% of base thermal conductivity). This factor only "
+					 "affects the soil material and is currently implemented for "
+					 "activation periods >=4. and for changes between 10% -- 200%.");
 
-	    	 prm.declare_entry("inputh path", "/home/zerpiko/input/",
-	    			 Patterns::Anything(),
+	    	 prm.declare_entry("input path", "/home/zerpiko/input",
+	    			 Patterns::DirectoryName(),
 					 "Define the top level directory with input files such as "
 					 "meteorological data or mesh files. These files are assumed to "
 					 "be sorted in files under this path.");
+
+	    	 prm.declare_entry("mesh filename","",
+	    			 Patterns::FileName(), "Name of the file with mesh data. "
+					 "It is assume to exist in a subdirectory of inputh_path.");
+
+	    	 prm.declare_entry("mesh dirname", "",
+	    			 Patterns::DirectoryName(), "Name of the directory with mesh data. "
+					 "It is assume to exist within input_path.");
 	     }
 	     prm.leave_subsection();
 }
@@ -174,6 +184,7 @@ void AllParameters<dim>::parse_parameters (ParameterHandler &prm)
 		  {
 			  canopy_density = prm.get_double ("canopy density");
 		  }
+		  prm.leave_subsection();
 
 		  prm.enter_subsection("options");
 		  {
@@ -187,6 +198,9 @@ void AllParameters<dim>::parse_parameters (ParameterHandler &prm)
 			  shading_factor     = prm.get_double ("shading factor");
 			  thermal_conductivity_factor = prm.get_double ("thermal conductivity factor");
 			  input_path         = prm.get      ("input path");
+			  mesh_filename      = prm.get("mesh filename");
+			  mesh_dirname       = prm.get("mesh dirname");
 		  }
+		  prm.leave_subsection();
 }
 }
