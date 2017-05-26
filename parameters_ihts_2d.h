@@ -23,15 +23,23 @@ struct AllParameters
 	std::string author;
 	std::string weather_type;
 	std::string input_path;
+	std::string output_path;
 	std::string mesh_filename;
 	std::string mesh_dirname;
+	std::string activation_type;
 
 	unsigned int preheating_step;
+//	unsigned int number_of_boundary_ids;
+//	unsigned int boundary_id_collector;
+//	unsigned int boundary_id_storage;
 
-	bool with_shading;
+//	bool with_shading;
 	bool fixed_bc_at_bottom;
 	bool with_insulation;
 	bool with_pipe_system;
+	bool output_vtu_files;
+
+//	std::map<unsigned int,std::string> boundary_ids;
 };
 
 template <int dim>
@@ -45,11 +53,15 @@ AllParameters<dim>::AllParameters ()
 	thermal_conductivity_factor=0.;
 
 	preheating_step=1;
+//	number_of_boundary_ids=0;
+//	boundary_id_collector=0;
+//	boundary_id_storage=0;
 
-	with_shading=false;
+//	with_shading=false;
 	fixed_bc_at_bottom=false;
 	with_insulation=false;
 	with_pipe_system=false;
+	output_vtu_files=false;
 }
 
 template <int dim>
@@ -97,11 +109,11 @@ AllParameters<dim>::declare_parameters (ParameterHandler &prm)
 	    			 "third activation period - collection (7), "
 	    			 "fourth activation period - usage (8).");
 
-	    	 prm.declare_entry("with shading", "false",
-	    			 Patterns::Bool(),
-					 "Defines the use of a shading factor on the "
-					 "road surface. The shading factor is defined by "
-					 "shading_factor.");
+//	    	 prm.declare_entry("with shading", "false",
+//	    			 Patterns::Bool(),
+//					 "Defines the use of a shading factor on the "
+//					 "road surface. The shading factor is defined by "
+//					 "shading_factor.");
 
 	    	 prm.declare_entry("fixed bc at bottom", "false",
 	    			 Patterns::Bool(),
@@ -155,9 +167,13 @@ AllParameters<dim>::declare_parameters (ParameterHandler &prm)
 
 	    	 prm.declare_entry("input path", "/home/zerpiko/input",
 	    			 Patterns::DirectoryName(),
-					 "Define the top level directory with input files such as "
+					 "Defines the top level directory with input files such as "
 					 "meteorological data or mesh files. These files are assumed to "
 					 "be sorted in files under this path.");
+
+	    	 prm.declare_entry("output path", "./output",
+	    			 Patterns::DirectoryName(),
+					 "Defines output directory path.");
 
 	    	 prm.declare_entry("mesh filename","",
 	    			 Patterns::FileName(), "Name of the file with mesh data. "
@@ -166,8 +182,35 @@ AllParameters<dim>::declare_parameters (ParameterHandler &prm)
 	    	 prm.declare_entry("mesh dirname", "",
 	    			 Patterns::DirectoryName(), "Name of the directory with mesh data. "
 					 "It is assume to exist within input_path.");
+
+	    	 prm.declare_entry("activation type", "automatic_activation",
+	    			 Patterns::Anything(), "Defines the type of activation that "
+					 "the pipe system have. 'automatic_activation' The system is "
+					 "activated automatically if a certain criteria is meet. At the "
+					 "moment this criteria is the temperature difference between the "
+					 "average temperature at the surface of collector and storage "
+					 "pipes. Two main periods of time are identified in the experimental "
+					 "results: from 23/08/2005 to 14/11/2005 and from 15/11/2005 to "
+					 "20/02/2006; 'forced_activation' The system is forced to be active"
+					 " in certain ranges of time (i.e.* between noon and 10pm everyday).");
+
+	    	 prm.declare_entry("output vtu files", "false",
+	    			 Patterns::Bool(),
+					 "If true, output visualization files every ouput_very time "
+					 "steps.");
 	     }
 	     prm.leave_subsection();
+
+//	     prm.enter_subsection("boundary info");
+//	     {
+//	    	 prm.declare_entry("boundary ids", "",
+//	    			 Patterns::Map(Patterns::Integer(0,10),Patterns::Anything()),
+//					 "Relation between boundary ids defined in the mesh and a string "
+//					 "to identify them. The main limitation is that at the moment the "
+//					 "string needs to be hard coded in the main code. In Gmsh the default "
+//					 "boundary id number is 0 (that's why 0 is tagged as 'everything else')");
+//	     }
+//	     prm.leave_subsection();
 }
 
 template <int dim>
@@ -190,7 +233,7 @@ void AllParameters<dim>::parse_parameters (ParameterHandler &prm)
 		  {
 			  author             = prm.get         ("author");
 			  preheating_step    = prm.get_integer ("preheating step");
-			  with_shading       = prm.get_bool    ("with shading");
+//			  with_shading       = prm.get_bool    ("with shading");
 			  fixed_bc_at_bottom = prm.get_bool ("fixed bc at bottom");
 			  with_insulation    = prm.get_bool ("with insulation");
 			  with_pipe_system   = prm.get_bool ("with pipe system");
@@ -198,9 +241,19 @@ void AllParameters<dim>::parse_parameters (ParameterHandler &prm)
 			  shading_factor     = prm.get_double ("shading factor");
 			  thermal_conductivity_factor = prm.get_double ("thermal conductivity factor");
 			  input_path         = prm.get      ("input path");
+			  output_path        = prm.get("output path");
 			  mesh_filename      = prm.get("mesh filename");
 			  mesh_dirname       = prm.get("mesh dirname");
+			  activation_type    = prm.get("activation type");
+			  output_vtu_files   = prm.get_bool("output vtu files");
 		  }
 		  prm.leave_subsection();
+
+//		  prm.enter_subsection("boundary info");
+//		  {
+//			  boundary_ids = prm.
+//					  prm.get("boundary ids");
+//		  }
+//		  prm.leave_subsection();
 }
 }
