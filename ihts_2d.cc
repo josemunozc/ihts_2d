@@ -498,7 +498,7 @@ namespace TRL
     if (preheating_step==1 && time_step==3600)
       {
 	time_step=3600;
-	timestep_number_max=10;//4000;//8640;//70079; // 8 years
+	timestep_number_max=70079; // 8 years
 	initial_date.reserve(6);
 	initial_date.push_back(1);
 	initial_date.push_back(9);
@@ -2303,8 +2303,8 @@ namespace TRL
 	double tolerance_storage___avg_norm=-1000.;
 	double tolerance_soil_avg_surface_temperature=-1000.;
 	double tolerance_road_avg_surface_temperature=-1000.;
-	double tolerance_limit_soil=0.0005;
-	double tolerance_limit_road=0.0005;
+	double tolerance_limit_soil=0.005;
+	double tolerance_limit_road=0.005;
 	// if (date_and_time[timestep_number][1]==6)
 	//   tolerance_limit_soil=0.8;
 	/*
