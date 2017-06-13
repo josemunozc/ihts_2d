@@ -1,0 +1,33 @@
+subsection time stepping
+  set time step	 =  3600  #
+  set theta      =   0.5  #
+end
+
+subsection surface conditions
+  set canopy density = 0.85 #
+end
+
+subsection options
+	set author             = Best #  
+	set preheating step    = 1 #
+	set shading factor     = 0 #
+	set fixed bc at bottom = false #
+	set with insulation    = false #
+	set with pipe system   = false #
+	set weather type       = emd-trl #
+	set thermal conductivity factor = 1.0 #
+	set input path       = /home/zerpiko/input #
+	set mesh filename    = trl_mesh_in_2d.msh #
+	set mesh dirname     = meshes #
+	set activation type  = automatic_activation #
+	set output vtu files = true #
+end
+
+#subsection boundary info
+#  set boundary ids=\
+#  0:everything_else,\
+#  1:collector_pipes,\
+#  2:storage_pipes,\
+#  3:road_surface,\
+#  4:soil_surface,\
+#  5:soil_bottom  
