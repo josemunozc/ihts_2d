@@ -56,12 +56,13 @@
 #include <map>
 #include <sys/stat.h>
 
+#include <Material.h>
 #include "Names.h"
 #include "SurfaceCoefficients.h"
 #include "AnalyticSolution.h"
 #include "BoundaryConditions.h"
 #include "DataTools.h"
-#include "MaterialData.h"
+//#include "MaterialData.h"
 
 #include "parameters_ihts_2d.h"
 
@@ -211,6 +212,7 @@ namespace TRL
 
     void surface_temperatures();
     void mesh_info();
+    std::string find_material(const unsigned int material_id);
 
     parallel::shared::Triangulation<dim>   triangulation;
     FE_Q<dim>            fe;
@@ -281,6 +283,17 @@ namespace TRL
       cell_index_to_old_boundary_coefficient_and_fluxes_soil,
       cell_index_to_new_boundary_coefficient_and_fluxes_road,
       cell_index_to_new_boundary_coefficient_and_fluxes_soil;
+
+    std::map<unsigned int, std::string> map_material_id_to_material_name
+    ={
+      { 8,"wearing_course"},
+      { 9,"binder_course"},
+      {10,"concrete"},
+      {11,"concrete"},
+      {12,"clay_trl"},
+      {13,"clay_trl"},
+      {14,"clay_trl"},
+    };
     /*-------------met data vectors and variables----------------*/
       std::vector< std::vector<int> >    date_and_time;
     std::vector< std::vector<double> > met_data;
@@ -371,8 +384,8 @@ namespace TRL
   mpi_communicator (MPI_COMM_WORLD),
   n_mpi_processes  (Utilities::MPI::n_mpi_processes(mpi_communicator)),
   this_mpi_process (Utilities::MPI::this_mpi_process(mpi_communicator)),
-  pcout               (std::cout,(this_mpi_process==0)),
-  n_local_cells       (numbers::invalid_unsigned_int),
+  pcout            (std::cout,(this_mpi_process==0)),
+  n_local_cells    (numbers::invalid_unsigned_int),
   moisture_movement(false),
   number_of_pipes  (40),
   n_boundary_ids          (8),
@@ -498,7 +511,7 @@ namespace TRL
     if (preheating_step==1 && time_step==3600)
       {
 	time_step=3600;
-	timestep_number_max=70079; // 8 years
+	timestep_number_max=4300;//70079; // 8 years
 	initial_date.reserve(6);
 	initial_date.push_back(1);
 	initial_date.push_back(9);
@@ -772,6 +785,22 @@ namespace TRL
 	  solution=transfer_out[1];
   }
 
+  template <int dim>
+  std::string Heat_Pipe<dim>::find_material(const unsigned int material_id)
+  {
+    std::map<unsigned int, std::string>::iterator
+      it=map_material_id_to_material_name.find(material_id);
+    if (it!=map_material_id_to_material_name.end())
+      return it->second;
+    else
+      {
+	std::cout << "MPI process " << this_mpi_process
+		  << " found an error. Material id "
+		  << material_id << " not found.\n";
+	throw -1;
+      }
+  }
+  
   template<int dim>
   void Heat_Pipe<dim>::setup_system()
   {
@@ -941,30 +970,22 @@ namespace TRL
 	  cell_laplace_matrix_old=0.;
 	  cell_rhs=0.;
 
-	  MaterialData material_data(dim,insulation,0,moisture_movement);
-	  double thermal_conductivity=material_data.get_soil_thermal_conductivity(cell->material_id());
-	  double thermal_heat_capacity=material_data.get_soil_heat_capacity(cell->material_id());
-	  double density=material_data.get_soil_density(cell->material_id());
-	  /*
-	   * studying the impact of thermal conductivity variations under
-	   * the insulation layer due (maybe) to the installation process
-	   * This is hard coded, so it is dangerous. But as long as the
-	   * thermal_conductivity_factor is equal to 1, it should be fine
-	   */
-	  if ((cell->center()[0]< 6.0) &&   // insulation edge
-	      (cell->center()[0]>-6.0) &&   // insulation edge
-	      (cell->center()[1]<-0.725) && // insulation depth
-	      (cell->center()[1]>-9.0) &&   // assumed thermal penetration
-	      (preheating_step>=4)&&
-	      cell->material_id()==14)
-	    thermal_conductivity=thermal_conductivity*thermal_conductivity_factor;
+	  Material material(find_material(cell->material_id()));
+	  double thermal_conductivity=material.thermal_conductivity();
+	  double volumetric_heat_capacity=material.volumetric_heat_capacity();
+	  
+	  //MaterialData material_data(dim,insulation,0,moisture_movement);
+	  //double thermal_conductivity=material_data.get_soil_thermal_conductivity(cell->material_id());
+	  //double thermal_heat_capacity=material_data.get_soil_heat_capacity(cell->material_id());
+	  //double density=material_data.get_soil_density(cell->material_id());
 
 	  for (unsigned int q_point=0; q_point<n_q_points; ++q_point)
 	    for (unsigned int i=0; i<dofs_per_cell; ++i)
 	      for (unsigned int j=0; j<dofs_per_cell; ++j)
 		{
 		  cell_mass_matrix(i,j)+=
-		    thermal_heat_capacity*density*
+		    //thermal_heat_capacity*density*
+		    volumetric_heat_capacity*
 		    fe_values.shape_value(i,q_point)*
 		    fe_values.shape_value(j,q_point)*
 		    fe_values.JxW(q_point);
@@ -1513,8 +1534,8 @@ namespace TRL
     /*
      * Add information about the material in
      * each cell and its thermal properties
-     */
-    MaterialData material_data (dim,insulation,/*moisture content*/0.23,moisture_movement);
+     */    
+    //MaterialData material_data (dim,insulation,/*moisture content*/0.23,moisture_movement);
     std::vector<unsigned int> material_id_int;
     std::vector<double> thermal_conductivity_int;
     std::vector<double> specific_heat_capacity_int;
@@ -1527,26 +1548,18 @@ namespace TRL
       endc = dof_handler.end();
     for (; cell!=endc; ++cell)
       {
-	material_id_int.push_back(cell->material_id());
-
-	if ((cell->center()[0]< 6.0) &&   // insulation edge
-	    (cell->center()[0]>-6.0) &&   // insulation edge
-	    (cell->center()[1]<-0.725) && // insulation depth
-	    (cell->center()[1]>-9.0) &&   // assumed thermal penetration
-	    (preheating_step>=4) &&
-	    cell->material_id()==14) // soil material id
-	  thermal_conductivity_int.push_back(thermal_conductivity_factor*
-					     material_data.get_soil_thermal_conductivity(cell->material_id()));
-	else
-	  thermal_conductivity_int
-	    .push_back(material_data.get_soil_thermal_conductivity(cell->material_id()));
-
+	unsigned int material_id=cell->material_id();
+	Material material(find_material(material_id));
+	material_id_int
+	  .push_back(material_id);
+	thermal_conductivity_int
+	  .push_back(material.thermal_conductivity());
 	specific_heat_capacity_int
-	  .push_back(material_data.get_soil_heat_capacity      (cell->material_id()));
+	  .push_back(material.specific_heat_capacity());
 	density_int
-	  .push_back(material_data.get_soil_density            (cell->material_id()));
+	  .push_back(material.density());
 	thermal_diffusivity_int
-	  .push_back(material_data.get_soil_thermal_diffusivity(cell->material_id()));
+	  .push_back(material.thermal_diffusivity());
 
 	if (cell_index_to_previous_new_surface_temperature.find(cell)!=
 	    cell_index_to_previous_new_surface_temperature.end())

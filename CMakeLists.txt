@@ -9,7 +9,7 @@ PROJECT(ihts)
 
 INCLUDE_DIRECTORIES(/home/zerpiko/git/libraries)
 
-ADD_LIBRARY(mylib /home/zerpiko/git/libraries/SurfaceCoefficients.cpp /home/zerpiko/git/libraries/AnalyticSolution.cpp /home/zerpiko/git/libraries/MaterialData.cpp /home/zerpiko/git/libraries/BoundaryConditions.cpp /home/zerpiko/git/libraries/DataTools.cpp /home/zerpiko/git/libraries/Names.cpp)
+ADD_LIBRARY(mylib /home/zerpiko/git/libraries/SurfaceCoefficients.cpp /home/zerpiko/git/libraries/AnalyticSolution.cpp /home/zerpiko/git/libraries/MaterialData.cpp /home/zerpiko/git/libraries/BoundaryConditions.cpp /home/zerpiko/git/libraries/DataTools.cpp /home/zerpiko/git/libraries/Names.cpp /home/zerpiko/git/libraries/Material.cpp)
 DEAL_II_SETUP_TARGET(mylib)
 
 
@@ -29,4 +29,8 @@ ADD_CUSTOM_TARGET(release
   COMMAND ${CMAKE_COMMAND} -DCMAKE_BUILD_TYPE=Release ${CMAKE_SOURCE_DIR}
   COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target all
   COMMENT "Switch CMAKE_BUILD_TYPE to Release"
+  )
+
+ADD_CUSTOM_TARGET(run
+  COMMAND mpirun -np 4 mycode input.prm
   )
