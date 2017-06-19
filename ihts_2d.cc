@@ -55,8 +55,9 @@
 #include <math.h>
 #include <map>
 #include <sys/stat.h>
+#include <utility>
 
-#include <Material.h>
+#include <PorousMaterial.h>
 #include "Names.h"
 #include "SurfaceCoefficients.h"
 #include "AnalyticSolution.h"
@@ -212,7 +213,9 @@ namespace TRL
 
     void surface_temperatures();
     void mesh_info();
-    std::string find_material(const unsigned int material_id);
+    std::string find_material_name(const unsigned int material_id);
+    double find_material_porosity(const unsigned int material_id);
+    double find_material_saturation(const unsigned int material_id);
 
     parallel::shared::Triangulation<dim>   triangulation;
     FE_Q<dim>            fe;
@@ -278,22 +281,17 @@ namespace TRL
       cell_index_to_old_inbound_flux,
       cell_index_to_new_inbound_flux;
 
-    std::map<typename DoFHandler<dim>::active_cell_iterator,std::vector<double>>
+    std::map<typename DoFHandler<dim>::active_cell_iterator,std::vector<double> >
     cell_index_to_old_boundary_coefficient_and_fluxes_road,
       cell_index_to_old_boundary_coefficient_and_fluxes_soil,
       cell_index_to_new_boundary_coefficient_and_fluxes_road,
       cell_index_to_new_boundary_coefficient_and_fluxes_soil;
-
-    std::map<unsigned int, std::string> map_material_id_to_material_name
-    ={
-      { 8,"wearing_course"},
-      { 9,"binder_course"},
-      {10,"concrete"},
-      {11,"concrete"},
-      {12,"clay_trl"},
-      {13,"clay_trl"},
-      {14,"clay_trl"},
-    };
+    /*
+     * boundary id - material name - porosity - saturation
+     */
+    //    std::map<unsigned int,std::tuple<std::string,double,double> > material_data;
+    //std::map<unsigned int, std::string> map_material_id_to_material_name
+    std::map<unsigned int,std::pair<std::string,std::vector<double> > >map_material_id_to_material_name;
     /*-------------met data vectors and variables----------------*/
       std::vector< std::vector<int> >    date_and_time;
     std::vector< std::vector<double> > met_data;
@@ -722,6 +720,20 @@ namespace TRL
 
     current_new_avg_soil_surface_temperature=10.;
     current_new_avg_road_surface_temperature=10.;
+
+    map_material_id_to_material_name[8]=std::make_pair("wearing_course",std::vector<double>(2));
+    map_material_id_to_material_name[9]=std::make_pair("binder_course",std::vector<double>(2));
+    map_material_id_to_material_name[10]=std::make_pair("concrete",std::vector<double>(2));
+    map_material_id_to_material_name[11]=std::make_pair("concrete",std::vector<double>(2));
+    map_material_id_to_material_name[12]=std::make_pair("clay_trl",std::vector<double>(2));
+    map_material_id_to_material_name[13]=std::make_pair("clay_trl",std::vector<double>(2));
+    map_material_id_to_material_name[14]=std::make_pair("clay_trl",std::vector<double>(2));
+    
+    map_material_id_to_material_name[12].second[0]=0.40;
+    map_material_id_to_material_name[12].second[0]=0.81;
+
+    map_material_id_to_material_name[13]=map_material_id_to_material_name[12];
+    map_material_id_to_material_name[14]=map_material_id_to_material_name[12];
   }
   
   template<int dim>
@@ -786,12 +798,46 @@ namespace TRL
   }
 
   template <int dim>
-  std::string Heat_Pipe<dim>::find_material(const unsigned int material_id)
+  std::string Heat_Pipe<dim>::find_material_name(const unsigned int material_id)
   {
-    std::map<unsigned int, std::string>::iterator
+    std::map<unsigned int,std::pair<std::string,std::vector<double> > >::iterator
+      it=map_material_id_to_material_name.find(material_id);
+      // std::map<unsigned int, std::string>::iterator
+      // it=map_material_id_to_material_name.find(material_id);
+    if (it!=map_material_id_to_material_name.end())
+      return (it->second.first);
+    else
+      {
+	std::cout << "MPI process " << this_mpi_process
+		  << " found an error. Material id "
+		  << material_id << " not found.\n";
+	throw -1;
+      }
+  }
+
+  template <int dim>
+  double Heat_Pipe<dim>::find_material_porosity(const unsigned int material_id)
+  {
+    std::map<unsigned int,std::pair<std::string,std::vector<double> > >::iterator
       it=map_material_id_to_material_name.find(material_id);
     if (it!=map_material_id_to_material_name.end())
-      return it->second;
+      return it->second.second[0];
+    else
+      {
+	std::cout << "MPI process " << this_mpi_process
+		  << " found an error. Material id "
+		  << material_id << " not found.\n";
+	throw -1;
+      }
+  }
+  
+  template <int dim>
+  double Heat_Pipe<dim>::find_material_saturation(const unsigned int material_id)
+  {
+    std::map<unsigned int,std::pair<std::string,std::vector<double> > >::iterator
+      it=map_material_id_to_material_name.find(material_id);
+    if (it!=map_material_id_to_material_name.end())
+      return it->second.second[1];
     else
       {
 	std::cout << "MPI process " << this_mpi_process
@@ -970,9 +1016,29 @@ namespace TRL
 	  cell_laplace_matrix_old=0.;
 	  cell_rhs=0.;
 
-	  Material material(find_material(cell->material_id()));
+	  double old_temperature
+	    =VectorTools::point_value(dof_handler,
+	  			      localized_old_solution,
+	  			      cell->center());
+	  double new_temperature=0.;
+	  if (timestep_number==1 && iteration==0)
+	    new_temperature
+	      =old_temperature;
+	  else
+	    new_temperature
+	      =VectorTools::point_value(dof_handler,
+	  				localized_new_solution,
+	  				cell->center());
+	  
+	  PorousMaterial material(find_material_name(cell->material_id()),
+				  find_material_porosity(cell->material_id()),
+				  find_material_saturation(cell->material_id()));
+	  //Material material(find_material_name(cell->material_id()));
 	  double thermal_conductivity=material.thermal_conductivity();
-	  double volumetric_heat_capacity=material.volumetric_heat_capacity();
+	  // double volumetric_heat_capacity
+	  //   =material.volumetric_heat_capacity();
+	  double volumetric_heat_capacity
+	    =material.volumetric_heat_capacity(theta*new_temperature+(1.-theta)*old_temperature);
 	  
 	  //MaterialData material_data(dim,insulation,0,moisture_movement);
 	  //double thermal_conductivity=material_data.get_soil_thermal_conductivity(cell->material_id());
@@ -1519,11 +1585,12 @@ namespace TRL
   template<int dim>
   void Heat_Pipe<dim>::output_results()
   {
-    const Vector<double> localized_solution (solution);
+    //const Vector<double> localized_old_solution (old_solution);
+    const Vector<double> localized_new_solution (solution);
 
     DataOut<dim> data_out;
     data_out.attach_dof_handler(dof_handler);
-    data_out.add_data_vector(localized_solution,"temperature");
+    data_out.add_data_vector(localized_new_solution,"temperature");
     /*
      * Add information about in which mpi process is each cell being processed
      */
@@ -1538,9 +1605,9 @@ namespace TRL
     //MaterialData material_data (dim,insulation,/*moisture content*/0.23,moisture_movement);
     std::vector<unsigned int> material_id_int;
     std::vector<double> thermal_conductivity_int;
-    std::vector<double> specific_heat_capacity_int;
-    std::vector<double> density_int;
-    std::vector<double> thermal_diffusivity_int;
+    //std::vector<double> volumetric_heat_capacity_int;
+    //std::vector<double> density_int;
+    //std::vector<double> thermal_diffusivity_int;
 
     std::vector<unsigned int> boundaries;
     typename DoFHandler<dim>::active_cell_iterator
@@ -1548,18 +1615,35 @@ namespace TRL
       endc = dof_handler.end();
     for (; cell!=endc; ++cell)
       {
+	// double old_temperature
+	//   =VectorTools::point_value(dof_handler,
+	// 			    localized_old_solution,
+	// 			    cell->center());
+	// double new_temperature=0.;
+	// if (timestep_number==1)
+	//   new_temperature
+	//     =old_temperature;
+	// else
+	//   new_temperature
+	//     =VectorTools::point_value(dof_handler,
+	// 			      localized_new_solution,
+	// 			      cell->center());
+	
 	unsigned int material_id=cell->material_id();
-	Material material(find_material(material_id));
+	PorousMaterial material(find_material_name(material_id),
+				find_material_porosity(material_id),
+				find_material_saturation(material_id));
+	//Material material(find_material_name(material_id));
 	material_id_int
 	  .push_back(material_id);
 	thermal_conductivity_int
 	  .push_back(material.thermal_conductivity());
-	specific_heat_capacity_int
-	  .push_back(material.specific_heat_capacity());
-	density_int
-	  .push_back(material.density());
-	thermal_diffusivity_int
-	  .push_back(material.thermal_diffusivity());
+	// volumetric_heat_capacity_int
+	//   .push_back(material.volumetric_heat_capacity(theta*new_temperature+(1.-theta)*old_temperature));
+	// density_int
+	//   .push_back(material.density());
+	// thermal_diffusivity_int
+	//   .push_back(material.thermal_diffusivity());
 
 	if (cell_index_to_previous_new_surface_temperature.find(cell)!=
 	    cell_index_to_previous_new_surface_temperature.end())
@@ -1571,20 +1655,20 @@ namespace TRL
 						material_id_int.end());
     const Vector<double> thermal_conductivity  (thermal_conductivity_int.begin(),
 						thermal_conductivity_int.end());
-    const Vector<double> specific_heat_capacity(specific_heat_capacity_int.begin(),
-						specific_heat_capacity_int.end());
-    const Vector<double> density               (density_int.begin(),
-						density_int.end());
-    const Vector<double> thermal_diffusivity   (thermal_diffusivity_int.begin(),
-						thermal_diffusivity_int.end());
+    // const Vector<double> volumetric_heat_capacity(volumetric_heat_capacity_int.begin(),
+    // 						volumetric_heat_capacity_int.end());
+    // const Vector<double> density               (density_int.begin(),
+    // 						density_int.end());
+    // const Vector<double> thermal_diffusivity   (thermal_diffusivity_int.begin(),
+    // 						thermal_diffusivity_int.end());
     const Vector<double> boundary_id           (boundaries.begin(),
 						boundaries.end());
 
     data_out.add_data_vector (material_id           ,"material_id");
     data_out.add_data_vector (thermal_conductivity  ,"thermal_conductivity");
-    data_out.add_data_vector (specific_heat_capacity,"specific_heat_capacity");
-    data_out.add_data_vector (density               ,"density");
-    data_out.add_data_vector (thermal_diffusivity   ,"thermal_diffusivity");
+    //data_out.add_data_vector (volumetric_heat_capacity,"volumetric_heat_capacity");
+    //data_out.add_data_vector (density               ,"density");
+    //data_out.add_data_vector (thermal_diffusivity   ,"thermal_diffusivity");
     data_out.add_data_vector (boundary_id   ,"boundary_id");
     /*
      * Define output name
