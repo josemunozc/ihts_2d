@@ -73,123 +73,151 @@ namespace TRL
 #include "PipeConvectiveCoefficient.h"
 #include "PipeSystem.h"
   
-  template<int dim>
-  class BoundaryFlux:public Function<dim>
+  class BoundaryFlux
   {
   public:
-    BoundaryFlux(std::vector<double> met_data);
+    BoundaryFlux(std::vector<double> met_data,
+		 double surface_temperature_,
+		 double canopy_density_,
+		 double shading_factor_,
+		 std::string surface_type);
     
-    virtual double value (const Point<dim> &p,
-			  const unsigned int component=0) const;
-    virtual void value_list (const std::vector<Point<dim> > &points,
-			     std::vector<double> &values,
-			     const unsigned int component=0) const;
+    double inbound_heat_flux();
+    double outbound_heat_coefficient();
+    
+    double inbound_heat_flux_solar();
+    double inbound_heat_flux_convective();
+    double inbound_heat_flux_evaporative();
+    double inbound_heat_flux_infrared();
+    double outbound_heat_coefficient_convective();
+    double outbound_heat_coefficient_evaporative();
+    double outbound_heat_coefficient_infrared();
   private:
-    /*
-     * Default constructor for the inner class?
-     */
-    // BoundaryConditions boundary_condition(false/*analytic*/,
-    // 					  0./* time_step*timestep_number*/,
-    // 					  0./*air_temperature*/,
-    // 					  0./*solar_radiation*/,
-    // 					  0./*wind_speed*/,
-    // 					  0./*relative_humidity*/,
-    // 					  0./*precipitation*/,
-    // 					  0./*surface_temperature*/,
-    // 					  0./*,new_surface_pressure*/,
-    // 					  false/*moisture_movement*/);
+    double surface_temperature;
+    double canopy_density;
+    double shading_factor;
+    double canopy_temperature;
+
+    std::string author;
+    std::string surface_type;
+
+    double inbound_flux_solar;
+    double inbound_flux_convective;
+    double inbound_flux_evaporative;
+    double inbound_flux_infrared;
+    double outbound_coefficient_convective;
+    double outbound_coefficient_evaporative;
+    double outbound_coefficient_infrared;
+
+    BoundaryConditions boundary_condition;
   };
   
-  template <int dim>
-  BoundaryFlux<dim>::BoundaryFlux(std::vector<double> met_data):Function<dim>()
+  BoundaryFlux::BoundaryFlux(std::vector<double> met_data,
+			     double surface_temperature_,
+			     double canopy_density_,
+			     double shading_factor_,
+			     std::string surface_type_)
+    :
+    surface_temperature(surface_temperature_),
+    canopy_density(canopy_density_),
+    shading_factor(shading_factor_),
+    surface_type(surface_type_)
   {
-    // boundary_condition(false/*analytic*/,
-    // 		       met_data[0]/* time_step*timestep_number*/,
-    // 		       met_data[1]/*air_temperature*/,
-    // 		       met_data[2]/*solar_radiation*/,
-    // 		       met_data[3]/*wind_speed*/,
-    // 		       met_data[4]/*relative_humidity*/,
-    // 		       met_data[5]/*precipitation*/,
-    // 		       met_data[6]/*surface_temperature*/,
-    // 		       met_data[7]/*,new_surface_pressure*/,
-    // 		       false/*moisture_movement*/);
-  }
-  
-  template <int dim>
-  double BoundaryFlux<dim>::value(const Point<dim> &p,
-				   const unsigned int) const
-  {
-    // BoundaryConditions boundary_condition(false/*analytic*/,
-    // 					  0./* time_step*timestep_number*/,
-    // 					  air_temperature,
-    // 					  solar_radiation,
-    // 					  wind_speed,
-    // 					  relative_humidity,
-    // 					  precipitation,
-    // 					  surface_temperature,
-    // 					  0./*,new_surface_pressure*/,
-    // 					  false/*moisture_movement*/);
-    // double canopy_temperature=0.;
-    // if (local_author=="Best")
-    //   {
-    // 	canopy_temperature
-    // 	  =boundary_condition
-    // 	  .get_canopy_temperature(local_author,
-    // 				  canopy_density);
-    //   }
-    // double inbound_heat_flux
-    //   =boundary_condition
-    //   .get_inbound_heat_flux(local_surface_type,
-    // 			     local_author,
-    // 			     override_shading_factor,
-    // 			     new_canopy_temperature,
-    // 			     canopy_density,
-    // 			     old_surface_temperature,
-    // 			     tav_surface_temperature,
-    // 			     true);
-    // boundary_condition
-    //   .print_inbound_heat_fluxes(solar_heat_flux,
-    // 				 inbound_convective_heat_flux,
-    // 				 inbound_evaporative_heat_flux,
-    // 				 inbound_infrared_heat_flux,
-    // 				 outbound_convective_coefficient,
-    // 				 outbound_infrared_coefficient,
-    // 				 outbound_evaporative_coefficient);
-    // outbound_convective_coefficient
-    //   =boundary_condition
-    //   .get_outbound_coefficient(local_surface_type,
-    // 				local_author,
-    // 				canopy_density,
-    // 				old_surface_temperature,
-    // 				tav_surface_temperature,
-    // 				true);
-    
-    // cell_index_to_new_outbound_coefficient[cell]
-    //   =outbound_convective_coefficient_new;
-    // cell_index_to_new_inbound_flux[cell]
-    //   =inbound_heat_flux_new;
-
-    // return inbound_heat_flux;
-    return 0.;
-  }
-  
-  template <int dim>
-  void BoundaryFlux<dim>::value_list(const std::vector<Point<dim> > &points,
-				      std::vector<double> &values,
-				      const unsigned int  component) const
-  {
-    const unsigned int n_points = points.size();
-    Assert (values.size() == n_points,
-	    ExcDimensionMismatch (values.size(), n_points));
-    Assert (component == 0,
-	    ExcIndexRange (component, 0, 1));
-    for (unsigned int i=0; i<n_points; ++i)
+    boundary_condition=BoundaryConditions(false/*analytic*/,
+					  0./* time_step*timestep_number*/,
+					  met_data[0]/*air_temperature*/,
+					  met_data[4]/*solar_radiation*/,
+					  met_data[2]/*wind_speed*/,
+					  met_data[1]/*relative_humidity*/,
+					  met_data[5]/*precipitation*/,
+					  surface_temperature,
+					  0./*,new_surface_pressure*/,
+					  false/*moisture_movement*/);
+    if (surface_type.compare("road")==0)
+      author="Herb";
+    else if (surface_type.compare("soil")==0)
+      author="Best";
+    else
       {
-	values[i] = 100;
+	std::cout << "Error surface type " << surface_type
+		  << " is not implemented.\n";
+	throw -1;
       }
+    
+    canopy_temperature=0.;    
+    if (author.compare("Best")==0)
+      canopy_temperature=
+	boundary_condition.get_canopy_temperature(author,canopy_density);
+
+    boundary_condition
+      .print_inbound_heat_fluxes(inbound_flux_solar,
+				 inbound_flux_convective,
+				 inbound_flux_evaporative,
+				 inbound_flux_infrared,
+				 outbound_coefficient_convective,
+				 outbound_coefficient_infrared,
+				 outbound_coefficient_evaporative);
+  }
+  
+  double BoundaryFlux::inbound_heat_flux()
+  {
+    return boundary_condition
+      .get_inbound_heat_flux(surface_type,
+			     author,
+			     shading_factor,
+			     canopy_temperature,
+			     canopy_density,
+			     surface_temperature,
+			     surface_temperature,
+			     true);
   }
 
+  double BoundaryFlux::outbound_heat_coefficient()
+  {
+    return boundary_condition
+      .get_outbound_coefficient(surface_type,
+				author,
+				canopy_density,
+				surface_temperature,
+				surface_temperature,
+				true);
+  }
+  
+  double BoundaryFlux::inbound_heat_flux_solar()
+  {
+    return inbound_flux_solar;
+  }
 
+  double BoundaryFlux::inbound_heat_flux_convective()
+  {
+    return inbound_flux_convective;
+  }
+
+  double BoundaryFlux::inbound_heat_flux_evaporative()
+  {
+    return inbound_flux_evaporative;
+  }
+  
+  double BoundaryFlux::inbound_heat_flux_infrared()
+  {
+    return inbound_flux_infrared;
+  }
+
+  double BoundaryFlux::outbound_heat_coefficient_convective()
+  {
+    return outbound_coefficient_convective;
+  }
+
+  double BoundaryFlux::outbound_heat_coefficient_evaporative()
+  {
+    return outbound_coefficient_evaporative;
+  }
+  
+  double BoundaryFlux::outbound_heat_coefficient_infrared()
+  {
+    return outbound_coefficient_infrared;
+  }
+  
   template <int dim>
   class Heat_Pipe
   {
@@ -216,6 +244,7 @@ namespace TRL
     std::string find_material_name(const unsigned int material_id);
     double find_material_porosity(const unsigned int material_id);
     double find_material_saturation(const unsigned int material_id);
+    double boundary_flow();
 
     parallel::shared::Triangulation<dim>   triangulation;
     FE_Q<dim>            fe;
@@ -900,67 +929,67 @@ namespace TRL
   template<int dim>
   void Heat_Pipe<dim>::assemble_system_petsc()
   {
-	  PETScWrappers::MPI::Vector tmp;
-	  tmp.reinit(solution);
+    PETScWrappers::MPI::Vector tmp;
+    tmp.reinit(solution);
 
-	  laplace_matrix_old.vmult(tmp,old_solution);
-	  tmp.compress(VectorOperation::insert);
-	  tmp*=-(1.-theta)*time_step;
-	  tmp.compress(VectorOperation::insert);
+    laplace_matrix_old.vmult(tmp,old_solution);
+    tmp.compress(VectorOperation::insert);
+    tmp*=-(1.-theta)*time_step;
+    tmp.compress(VectorOperation::insert);
 
-	  system_rhs+=tmp;
-	  system_rhs.compress(VectorOperation::add);
+    system_rhs+=tmp;
+    system_rhs.compress(VectorOperation::add);
 
-	  mass_matrix.vmult(tmp,old_solution);
-	  tmp.compress(VectorOperation::insert);
+    mass_matrix.vmult(tmp,old_solution);
+    tmp.compress(VectorOperation::insert);
 
-	  system_rhs+=tmp;
-	  system_rhs.compress(VectorOperation::add);
+    system_rhs+=tmp;
+    system_rhs.compress(VectorOperation::add);
 
-	  system_matrix = 0.;
-	  system_matrix.compress(VectorOperation::insert);
-	  system_matrix.add(1.0,mass_matrix);
-	  system_matrix.compress(VectorOperation::add);
+    system_matrix = 0.;
+    system_matrix.compress(VectorOperation::insert);
+    system_matrix.add(1.0,mass_matrix);
+    system_matrix.compress(VectorOperation::add);
 
-	  system_matrix.add(theta*time_step,laplace_matrix_new);
-	  system_matrix.compress(VectorOperation::add);
+    system_matrix.add(theta*time_step,laplace_matrix_new);
+    system_matrix.compress(VectorOperation::add);
 
-	  if (fixed_bc_at_bottom)
-	  {
-		  std::map<unsigned int,double> boundary_values;
-		  VectorTools::interpolate_boundary_values (dof_handler,
-				  boundary_id_soil_bottom,
-				  ConstantFunction<dim>(10.95),
-				  boundary_values);
-		  MatrixTools::apply_boundary_values (boundary_values,
-				  system_matrix,
-				  solution,
-				  system_rhs,
-				  false);
-	  }
-	  if (author=="Fixed")
-	  {
-		  std::map<unsigned int,double> boundary_values;
-		  VectorTools::interpolate_boundary_values (dof_handler,
-				  boundary_id_road,
-				  ConstantFunction<dim>(new_air_temperature),
-				  boundary_values);
-		  MatrixTools::apply_boundary_values (boundary_values,
-				  system_matrix,
-				  solution,
-				  system_rhs,
-				  false);
-		  boundary_values.clear();
-		  VectorTools::interpolate_boundary_values (dof_handler,
-				  boundary_id_soil,
-				  ConstantFunction<dim>(new_air_temperature),
-				  boundary_values);
-		  MatrixTools::apply_boundary_values (boundary_values,
-				  system_matrix,
-				  solution,
-				  system_rhs,
-				  false);
-	  }
+    if (fixed_bc_at_bottom)
+      {
+	std::map<unsigned int,double> boundary_values;
+	VectorTools::interpolate_boundary_values (dof_handler,
+						  boundary_id_soil_bottom,
+						  ConstantFunction<dim>(10.95),
+						  boundary_values);
+	MatrixTools::apply_boundary_values (boundary_values,
+					    system_matrix,
+					    solution,
+					    system_rhs,
+					    false);
+      }
+    if (author=="Fixed")
+      {
+	std::map<unsigned int,double> boundary_values;
+	VectorTools::interpolate_boundary_values (dof_handler,
+						  boundary_id_road,
+						  ConstantFunction<dim>(new_air_temperature),
+						  boundary_values);
+	MatrixTools::apply_boundary_values (boundary_values,
+					    system_matrix,
+					    solution,
+					    system_rhs,
+					    false);
+	boundary_values.clear();
+	VectorTools::interpolate_boundary_values (dof_handler,
+						  boundary_id_soil,
+						  ConstantFunction<dim>(new_air_temperature),
+						  boundary_values);
+	MatrixTools::apply_boundary_values (boundary_values,
+					    system_matrix,
+					    solution,
+					    system_rhs,
+					    false);
+      }
   }
 
   template<int dim>
@@ -1016,41 +1045,37 @@ namespace TRL
 	  cell_laplace_matrix_old=0.;
 	  cell_rhs=0.;
 
-	  double old_temperature
-	    =VectorTools::point_value(dof_handler,
-	  			      localized_old_solution,
-	  			      cell->center());
-	  double new_temperature=0.;
-	  if (timestep_number==1 && iteration==0)
-	    new_temperature
-	      =old_temperature;
-	  else
-	    new_temperature
+	  double thermal_conductivity=0.;
+	  double volumetric_heat_capacity=0.;
+	  {
+	    double old_temperature
 	      =VectorTools::point_value(dof_handler,
-	  				localized_new_solution,
-	  				cell->center());
+					localized_old_solution,
+					cell->center());
+	    double new_temperature=0.;
+	    if (timestep_number==1 && iteration==0)
+	      new_temperature
+		=old_temperature;
+	    else
+	      new_temperature
+		=VectorTools::point_value(dof_handler,
+					  localized_new_solution,
+					  cell->center());
 	  
-	  PorousMaterial material(find_material_name(cell->material_id()),
-				  find_material_porosity(cell->material_id()),
-				  find_material_saturation(cell->material_id()));
-	  //Material material(find_material_name(cell->material_id()));
-	  double thermal_conductivity=material.thermal_conductivity();
-	  // double volumetric_heat_capacity
-	  //   =material.volumetric_heat_capacity();
-	  double volumetric_heat_capacity
-	    =material.volumetric_heat_capacity(theta*new_temperature+(1.-theta)*old_temperature);
+	    PorousMaterial material(find_material_name(cell->material_id()),
+				    find_material_porosity(cell->material_id()),
+				    find_material_saturation(cell->material_id()));
 	  
-	  //MaterialData material_data(dim,insulation,0,moisture_movement);
-	  //double thermal_conductivity=material_data.get_soil_thermal_conductivity(cell->material_id());
-	  //double thermal_heat_capacity=material_data.get_soil_heat_capacity(cell->material_id());
-	  //double density=material_data.get_soil_density(cell->material_id());
-
+	    thermal_conductivity=
+	      material.thermal_conductivity();
+	    volumetric_heat_capacity=
+	      material.volumetric_heat_capacity(theta*new_temperature+(1.-theta)*old_temperature);
+	  }	  
 	  for (unsigned int q_point=0; q_point<n_q_points; ++q_point)
 	    for (unsigned int i=0; i<dofs_per_cell; ++i)
 	      for (unsigned int j=0; j<dofs_per_cell; ++j)
 		{
 		  cell_mass_matrix(i,j)+=
-		    //thermal_heat_capacity*density*
 		    volumetric_heat_capacity*
 		    fe_values.shape_value(i,q_point)*
 		    fe_values.shape_value(j,q_point)*
@@ -1087,6 +1112,7 @@ namespace TRL
 		{
 		  /*
 		   * Variables for heat flux from surface. The convective coefficients below
+		   *
 		   * include both convective and infrared interactions since they can be
 		   * represented in a similar way (after the radiative coefficients have
 		   * been linearized).
@@ -1111,7 +1137,6 @@ namespace TRL
 		       * in the solution vector) and the cost is directly proportional to the number of
 		       * cells (making it unsuitable for 3D). So, a new strategy is needed.
 		       */
-		      double cell_face_diameter=cell->face(face)->diameter();
 		      double old_surface_temperature
 			=VectorTools::point_value(dof_handler,
 						  localized_old_solution,
@@ -1140,7 +1165,7 @@ namespace TRL
 		      	  	((date_and_time[timestep_number][3]==17) &&
 				 (date_and_time[timestep_number][4]==00)))))
 		      	    override_shading_factor=shading_factor_value;
-
+			  
 			  std::string local_author=author;
 		      	  std::string local_surface_type="soil";
 		      	  if ((dim==2 || dim==3) &&
@@ -1149,313 +1174,121 @@ namespace TRL
 		      	      local_author="Herb";
 		      	      local_surface_type="road";
 		      	    }
-			  //-----------OLD--------------//
-			  double old_solar_heat_flux=0.;
-			  double old_inbound_convective_heat_flux=0.;
-			  double old_inbound_evaporative_heat_flux=0.;
-			  double old_inbound_infrared_heat_flux=0.;
-			  double old_outbound_convective_coefficient=0.;
-			  double old_outbound_infrared_coefficient=0.;
-			  double old_outbound_evaporative_coefficient=0.;
-			  {
-			    if (timestep_number==1)
-			      {
-				BoundaryConditions boundary_condition_old (false/*analytic*/,
-									   time_step*(timestep_number-1),
-									   old_air_temperature,
-									   old_solar_radiation,
-									   old_wind_speed,
-									   old_relative_humidity,
-									   old_precipitation,
-									   old_surface_temperature,
-									   0./*,old_surface_pressure*/,
-									   moisture_movement);
-			  	double old_canopy_temperature=0.;
-			  	if (local_author=="Best")
-			  	  {
-			  	    old_canopy_temperature
-			  	      =boundary_condition_old
-			  	      .get_canopy_temperature(local_author,
-			  				      canopy_density);
-			  	  }
-			  	outbound_convective_coefficient_old
-			  	  =boundary_condition_old
-			  	  .get_outbound_coefficient(local_surface_type,
-			  				    local_author,
-			  				    canopy_density,
-			  				    old_surface_temperature,
-			  				    old_surface_temperature,
-			  				    true);
-			  	inbound_heat_flux_old
-			  	  =boundary_condition_old
-			  	  .get_inbound_heat_flux(local_surface_type,
-			  				 local_author,
-			  				 override_shading_factor,
-			  				 old_canopy_temperature,
-			  				 canopy_density,
-			  				 old_surface_temperature,
-			  				 old_surface_temperature,
-			  				 true);
-				boundary_condition_old.print_inbound_heat_fluxes(old_solar_heat_flux,
-										 old_inbound_convective_heat_flux,
-										 old_inbound_evaporative_heat_flux,
-										 old_inbound_infrared_heat_flux,
-										 old_outbound_convective_coefficient,
-										 old_outbound_infrared_coefficient,
-										 old_outbound_evaporative_coefficient);
-			      }
-			    else
-			      {
-			  	outbound_convective_coefficient_old
-			  	  =cell_index_to_old_outbound_coefficient[cell];
-			  	inbound_heat_flux_old
-			  	  =cell_index_to_old_inbound_flux[cell];
-
-				if (face_boundary_indicator==boundary_id_road)
-				  {
-				    old_solar_heat_flux
-				      =cell_index_to_old_boundary_coefficient_and_fluxes_road[cell][0];
-				    old_inbound_convective_heat_flux
-				      =cell_index_to_old_boundary_coefficient_and_fluxes_road[cell][1];
-				    old_inbound_evaporative_heat_flux
-				      =cell_index_to_old_boundary_coefficient_and_fluxes_road[cell][2];
-				    old_inbound_infrared_heat_flux
-				      =cell_index_to_old_boundary_coefficient_and_fluxes_road[cell][3];
-				    old_outbound_convective_coefficient
-				      =cell_index_to_old_boundary_coefficient_and_fluxes_road[cell][4];
-				    old_outbound_infrared_coefficient
-				      =cell_index_to_old_boundary_coefficient_and_fluxes_road[cell][5];
-				    old_outbound_evaporative_coefficient
-				      =cell_index_to_old_boundary_coefficient_and_fluxes_road[cell][6];
-				  }
-				else
-				  {
-				    old_solar_heat_flux
-				      =cell_index_to_old_boundary_coefficient_and_fluxes_soil[cell][0];
-				    old_inbound_convective_heat_flux
-				      =cell_index_to_old_boundary_coefficient_and_fluxes_soil[cell][1];
-				    old_inbound_evaporative_heat_flux
-				      =cell_index_to_old_boundary_coefficient_and_fluxes_soil[cell][2];
-				    old_inbound_infrared_heat_flux
-				      =cell_index_to_old_boundary_coefficient_and_fluxes_soil[cell][3];
-				    old_outbound_convective_coefficient
-				      =cell_index_to_old_boundary_coefficient_and_fluxes_soil[cell][4];
-				    old_outbound_infrared_coefficient
-				      =cell_index_to_old_boundary_coefficient_and_fluxes_soil[cell][5];
-				    old_outbound_evaporative_coefficient
-				      =cell_index_to_old_boundary_coefficient_and_fluxes_soil[cell][6];
-				  }
-			      }
-			  }
-			  //-----------NEW--------------//
-			  double new_solar_heat_flux=0.;
-			  double new_inbound_convective_heat_flux=0.;
-			  double new_inbound_evaporative_heat_flux=0.;
-			  double new_inbound_infrared_heat_flux=0.;
-			  double new_outbound_convective_coefficient=0.;
-			  double new_outbound_infrared_coefficient=0.;
-			  double new_outbound_evaporative_coefficient=0.;
-			  {
-			    
-			    double tav_surface_temperature
-			      =1.0*old_surface_temperature+
-			      0.0*new_surface_temperature;
-			    BoundaryConditions boundary_condition_new (false/*analytic*/,
-			  					       time_step*timestep_number,
-			  					       new_air_temperature,
-			  					       new_solar_radiation,
-			  					       new_wind_speed,
-			  					       new_relative_humidity,
-			  					       new_precipitation,
-			  					       tav_surface_temperature,
-			  					       0./*,new_surface_pressure*/,
-			  					       moisture_movement);
-			    double new_canopy_temperature=0.;
-			    if (local_author=="Best")
-			      {
-			  	new_canopy_temperature
-			  	  =boundary_condition_new
-			  	  .get_canopy_temperature(local_author,
-			  				  canopy_density);
-			      }
-			    outbound_convective_coefficient_new
-			      =boundary_condition_new
-			      .get_outbound_coefficient(local_surface_type,
-			  				local_author,
-			  				canopy_density,
-			  				old_surface_temperature,
-			  				tav_surface_temperature,
-			  				true);
-			    inbound_heat_flux_new
-			      =boundary_condition_new
-			      .get_inbound_heat_flux(local_surface_type,
-			  			     local_author,
-			  			     override_shading_factor,
-			  			     new_canopy_temperature,
-			  			     canopy_density,
-			  			     old_surface_temperature,
-			  			     tav_surface_temperature,
-			  			     true);
-
-			    cell_index_to_new_outbound_coefficient[cell]
-			      =outbound_convective_coefficient_new;
-			    cell_index_to_new_inbound_flux[cell]
-			      =inbound_heat_flux_new;
-
-			    boundary_condition_new
-			      .print_inbound_heat_fluxes(new_solar_heat_flux,
-							 new_inbound_convective_heat_flux,
-							 new_inbound_evaporative_heat_flux,
-							 new_inbound_infrared_heat_flux,
-							 new_outbound_convective_coefficient,
-							 new_outbound_infrared_coefficient,
-							 new_outbound_evaporative_coefficient);
-			    
-			    if (face_boundary_indicator==boundary_id_road)
-			      {
-				cell_index_to_new_boundary_coefficient_and_fluxes_road[cell][0]
-				  =new_solar_heat_flux;
-				cell_index_to_new_boundary_coefficient_and_fluxes_road[cell][1]
-				  =new_inbound_convective_heat_flux;
-				cell_index_to_new_boundary_coefficient_and_fluxes_road[cell][2]
-				  =new_inbound_evaporative_heat_flux;
-				cell_index_to_new_boundary_coefficient_and_fluxes_road[cell][3]
-				  =new_inbound_infrared_heat_flux;
-				cell_index_to_new_boundary_coefficient_and_fluxes_road[cell][4]
-				  =new_outbound_convective_coefficient;
-				cell_index_to_new_boundary_coefficient_and_fluxes_road[cell][5]
-				  =new_outbound_infrared_coefficient;
-				cell_index_to_new_boundary_coefficient_and_fluxes_road[cell][6]
-				  =new_outbound_evaporative_coefficient;
-			      }
-			    else
-			      {
-				cell_index_to_new_boundary_coefficient_and_fluxes_soil[cell][0]
-				  =new_solar_heat_flux;
-				cell_index_to_new_boundary_coefficient_and_fluxes_soil[cell][1]
-				  =new_inbound_convective_heat_flux;
-				cell_index_to_new_boundary_coefficient_and_fluxes_soil[cell][2]
-				  =new_inbound_evaporative_heat_flux;
-				cell_index_to_new_boundary_coefficient_and_fluxes_soil[cell][3]
-				  =new_inbound_infrared_heat_flux;
-				cell_index_to_new_boundary_coefficient_and_fluxes_soil[cell][4]
-				  =new_outbound_convective_coefficient;
-				cell_index_to_new_boundary_coefficient_and_fluxes_soil[cell][5]
-				  =new_outbound_infrared_coefficient;
-				cell_index_to_new_boundary_coefficient_and_fluxes_soil[cell][6]
-				  =new_outbound_evaporative_coefficient;
-			      }
-			  }
-		      	  /*
-		      	   * Save the calculated heat fluxes.
-		      	   */
+			  //-----------HEAT FLUXES AND COEFFICIENTS---------//
+			  BoundaryFlux old_boundary_flux(met_data[timestep_number-1],
+							 old_surface_temperature,
+							 canopy_density,
+							 override_shading_factor,
+							 local_surface_type);
+			  outbound_convective_coefficient_old=
+			    old_boundary_flux.outbound_heat_coefficient();
+			  inbound_heat_flux_old=
+			    old_boundary_flux.inbound_heat_flux();
+			  
+			  double tav_surface_temperature
+			    =1.0*old_surface_temperature+
+			    0.0*new_surface_temperature;
+			  BoundaryFlux new_boundary_flux(met_data[timestep_number],
+							 tav_surface_temperature,
+							 canopy_density,
+							 override_shading_factor,
+							 local_surface_type);
+			  outbound_convective_coefficient_new=
+			    new_boundary_flux.outbound_heat_coefficient();
+			  inbound_heat_flux_new=
+			    new_boundary_flux.inbound_heat_flux();
+			  
+			  double cell_face_diameter=cell->face(face)->diameter();
 			  if (face_boundary_indicator==boundary_id_road)
 			    {
 			      road_heat_fluxes[timestep_number-1][0]+=//J/m
 				time_step*cell_face_diameter*
-				(theta*new_solar_heat_flux+
-				 (1.-theta)*old_solar_heat_flux);
+				((   theta)*new_boundary_flux.inbound_heat_flux_solar()+
+				 (1.-theta)*old_boundary_flux.inbound_heat_flux_solar());
 			      road_heat_fluxes[timestep_number-1][1]+=//J/m
 				time_step*cell_face_diameter*
-				(theta*new_inbound_convective_heat_flux+
-				 (1.-theta)*old_inbound_convective_heat_flux);
+				((   theta)*new_boundary_flux.inbound_heat_flux_convective()+
+				 (1.-theta)*old_boundary_flux.inbound_heat_flux_convective());
 			      road_heat_fluxes[timestep_number-1][2]+=//J/m
 				time_step*cell_face_diameter*
-				(theta*new_inbound_evaporative_heat_flux+
-				 (1.-theta)*old_inbound_evaporative_heat_flux);
+				((   theta)*new_boundary_flux.inbound_heat_flux_evaporative()+
+				 (1.-theta)*old_boundary_flux.inbound_heat_flux_evaporative());
 			      road_heat_fluxes[timestep_number-1][3]+=//J/m
 				time_step*cell_face_diameter*
-				(theta*new_inbound_infrared_heat_flux+
-				 (1.-theta)*old_inbound_infrared_heat_flux);
+				((   theta)*new_boundary_flux.inbound_heat_flux_infrared()+
+				 (1.-theta)*old_boundary_flux.inbound_heat_flux_infrared());
 			      road_heat_fluxes[timestep_number-1][4]+=//J/m
 				time_step*cell_face_diameter*
-				(theta*new_outbound_convective_coefficient*new_surface_temperature+
-				 (1.-theta)*old_outbound_convective_coefficient*old_surface_temperature);
+				((   theta)*new_boundary_flux.outbound_heat_coefficient_convective()*
+				 new_surface_temperature+
+				 (1.-theta)*old_boundary_flux.outbound_heat_coefficient_convective()*
+				 old_surface_temperature);
 			      road_heat_fluxes[timestep_number-1][5]+=//J/m
 				time_step*cell_face_diameter*
-				(theta*new_outbound_infrared_coefficient*new_surface_temperature+
-				 (1.-theta)*old_outbound_infrared_coefficient*old_surface_temperature);
+				((   theta)*new_boundary_flux.outbound_heat_coefficient_infrared()*
+				 new_surface_temperature+
+				 (1.-theta)*old_boundary_flux.outbound_heat_coefficient_infrared()*
+				 old_surface_temperature);
 			      road_heat_fluxes[timestep_number-1][6]+=
-				theta*new_outbound_convective_coefficient+
-				(1.-theta)*old_outbound_convective_coefficient;
+				(   theta)*new_boundary_flux.outbound_heat_coefficient_convective()+
+				(1.-theta)*new_boundary_flux.outbound_heat_coefficient_convective();
 			      road_heat_fluxes[timestep_number-1][7]+=
-				theta*new_outbound_infrared_coefficient+
-				(1.-theta)*old_outbound_infrared_coefficient;
+				(   theta)*new_boundary_flux.outbound_heat_coefficient_infrared()+
+				(1.-theta)*old_boundary_flux.outbound_heat_coefficient_infrared();
 			      road_heat_fluxes[timestep_number-1][8]+=//J/m
 				time_step*cell_face_diameter*
-				(theta*outbound_convective_coefficient_new*new_surface_temperature+
+				((   theta)*outbound_convective_coefficient_new*new_surface_temperature+
 				 (1.-theta)*outbound_convective_coefficient_old*old_surface_temperature);
 			      road_heat_fluxes[timestep_number-1][9]+=//J/m
 				time_step*cell_face_diameter*
-				(theta*inbound_heat_flux_new+
+				((   theta)*inbound_heat_flux_new+
 				 (1.-theta)*inbound_heat_flux_old);
 			      faces_on_road_surface++;
 			    }
 			  else if (face_boundary_indicator==boundary_id_soil)
 			    {
-			      if (iteration>100 && iteration<=105)
-				{
-				  std::cout << "\tMPI: " << this_mpi_process
-					    << "\ts: " << iteration
-					    << "\tcfc: " <<  cell->face(face)->center() << "\n"
-					    // << "\tRo : " << old_solar_heat_flux
-					    // << "\tRn : " << new_solar_heat_flux << "\n"
-					    << "\tICHFo: " << old_inbound_convective_heat_flux
-					    << "\tICHFn: " << new_inbound_convective_heat_flux << "\n"
-					    << "\tIEHFo: " << old_inbound_evaporative_heat_flux
-					    << "\tIEHFn: " << new_inbound_evaporative_heat_flux << "\n"
-					    << "\tIIHFo: " << old_inbound_infrared_heat_flux
-					    << "\tIIHFn: " << new_inbound_infrared_heat_flux << "\n"
-					    << "\tOCCo: " << old_outbound_convective_coefficient
-					    << "\tOCCn: " << new_outbound_convective_coefficient << "\n"
-					    // << "\tOICo: " << old_outbound_infrared_coefficient
-					    // << "\tOICn: " << new_outbound_infrared_coefficient << "\n"
-					    << "\tOECo: " << old_outbound_evaporative_coefficient
-					    << "\tOECn: " << new_outbound_evaporative_coefficient << "\n\n";
-					    // << "\tOCCo: " << outbound_convective_coefficient_old
-					    // << "\tOCCn: " << outbound_convective_coefficient_new << "\n"
-					    // << "\tIHFo: " << inbound_heat_flux_old
-					    // << "\tIHFn: " << inbound_heat_flux_new << "\n\n";
-				}
-			      
 			      soil_heat_fluxes[timestep_number-1][0]+=//J/m
 				time_step*cell_face_diameter*
-				(theta*new_solar_heat_flux+
-				 (1.-theta)*old_solar_heat_flux);
+				((   theta)*new_boundary_flux.inbound_heat_flux_solar()+
+				 (1.-theta)*old_boundary_flux.inbound_heat_flux_solar());
 			      soil_heat_fluxes[timestep_number-1][1]+=//J/m
 				time_step*cell_face_diameter*
-				(theta*new_inbound_convective_heat_flux+
-				 (1.-theta)*old_inbound_convective_heat_flux);
+				((   theta)*new_boundary_flux.inbound_heat_flux_convective()+
+				 (1.-theta)*old_boundary_flux.inbound_heat_flux_convective());
 			      soil_heat_fluxes[timestep_number-1][2]+=//J/m
 				time_step*cell_face_diameter*
-				(theta*new_inbound_evaporative_heat_flux+
-				 (1.-theta)*old_inbound_evaporative_heat_flux);
+				((   theta)*new_boundary_flux.inbound_heat_flux_evaporative()+
+				 (1.-theta)*old_boundary_flux.inbound_heat_flux_evaporative());
 			      soil_heat_fluxes[timestep_number-1][3]+=//J/m
 				time_step*cell_face_diameter*
-				(theta*new_inbound_infrared_heat_flux+
-				 (1.-theta)*old_inbound_infrared_heat_flux);
+				((   theta)*new_boundary_flux.inbound_heat_flux_infrared()+
+				 (1.-theta)*old_boundary_flux.inbound_heat_flux_infrared());
 			      soil_heat_fluxes[timestep_number-1][4]+=//J/m
 				time_step*cell_face_diameter*
-				(theta*new_outbound_convective_coefficient*new_surface_temperature+
-				 (1.-theta)*old_outbound_convective_coefficient*old_surface_temperature);
+				((   theta)*new_boundary_flux.outbound_heat_coefficient_convective()*
+				 new_surface_temperature+
+				 (1.-theta)*old_boundary_flux.outbound_heat_coefficient_convective()*
+				 old_surface_temperature);
 			      soil_heat_fluxes[timestep_number-1][5]+=//J/m
 				time_step*cell_face_diameter*
-				(theta*new_outbound_infrared_coefficient*new_surface_temperature+
-				 (1.-theta)*old_outbound_infrared_coefficient*old_surface_temperature);
+				((   theta)*new_boundary_flux.outbound_heat_coefficient_infrared()*
+				 new_surface_temperature+
+				 (1.-theta)*old_boundary_flux.outbound_heat_coefficient_infrared()*
+				 old_surface_temperature);
 			      soil_heat_fluxes[timestep_number-1][6]+=
-				theta*new_outbound_convective_coefficient+
-				(1.-theta)*old_outbound_convective_coefficient;
+				(   theta)*new_boundary_flux.outbound_heat_coefficient_convective()+
+				(1.-theta)*new_boundary_flux.outbound_heat_coefficient_convective();
 			      soil_heat_fluxes[timestep_number-1][7]+=
-				theta*new_outbound_infrared_coefficient+
-				(1.-theta)*old_outbound_infrared_coefficient;
+				(   theta)*new_boundary_flux.outbound_heat_coefficient_infrared()+
+				(1.-theta)*old_boundary_flux.outbound_heat_coefficient_infrared();
 			      soil_heat_fluxes[timestep_number-1][8]+=//J/m
 				time_step*cell_face_diameter*
-				(theta*outbound_convective_coefficient_new*new_surface_temperature+
+				((   theta)*outbound_convective_coefficient_new*new_surface_temperature+
 				 (1.-theta)*outbound_convective_coefficient_old*old_surface_temperature);
 			      soil_heat_fluxes[timestep_number-1][9]+=//J/m
 				time_step*cell_face_diameter*
-				(theta*inbound_heat_flux_new+
-				 (1.-theta)*inbound_heat_flux_old);				
+				((   theta)*inbound_heat_flux_new+
+				 (1.-theta)*inbound_heat_flux_old);
 			      faces_on_soil_surface++;
 			    }
 			  else
@@ -1463,7 +1296,214 @@ namespace TRL
 			      pcout << "Error. face_boundary_id " << face_boundary_indicator << " not implemented.";
 			      pcout << std::endl;
 			      throw 1;
-			    }		      	  
+			    }
+			  
+			  //-----------OLD--------------//
+			  // {
+			  //   if (timestep_number==1)
+			  //     {
+			  // 	BoundaryFlux old_boundary_flux(met_data[timestep_number-1],
+			  // 				       old_surface_temperature,
+			  // 				       canopy_density,
+			  // 				       override_shading_factor,
+			  // 				       local_surface_type);
+			  // 	outbound_convective_coefficient_old=
+			  // 	  old_boundary_flux.outbound_heat_coefficient();
+			  // 	inbound_heat_flux_old=
+			  // 	  old_boundary_flux.inbound_heat_flux();
+				
+			  // 	if (face_boundary_indicator==boundary_id_road)
+			  // 	  {
+			  // 	    old_boundary_flux
+			  // 	      .save_energy_and_coefficients(road_heat_fluxes[timestep_number-1],
+			  // 					    time_step,
+			  // 					    cell_face_diameter,
+			  // 					    1.-theta);
+			  // 	  }
+			  // 	else if (face_boundary_indicator==boundary_id_soil)
+			  // 	  {
+			  // 	    old_boundary_flux
+			  // 	      .save_energy_and_coefficients(soil_heat_fluxes[timestep_number-1],
+			  // 					    time_step,
+			  // 					    cell_face_diameter,
+			  // 					    1.-theta);
+			  // 	  }
+			  // 	else
+			  // 	  {
+			  // 	    pcout << "Error. face_boundary_id " << face_boundary_indicator
+			  // 		  << " not implemented." << std::endl;
+			  // 	    throw 1;
+			  // 	  }		      	  
+			  //     }
+			  //   else
+			  //     {
+			  // 	outbound_convective_coefficient_old
+			  // 	  =cell_index_to_old_outbound_coefficient[cell];
+			  // 	inbound_heat_flux_old
+			  // 	  =cell_index_to_old_inbound_flux[cell];
+			  //     }
+			  // }
+			  //-----------NEW--------------//
+			  // {			    
+			  //   double tav_surface_temperature
+			  //     =1.0*old_surface_temperature+
+			  //     0.0*new_surface_temperature;
+			  //   BoundaryFlux new_boundary_flux(met_data[timestep_number-1],
+			  // 				   tav_surface_temperature,
+			  // 				   canopy_density,
+			  // 				   override_shading_factor,
+			  // 				   local_surface_type);
+			  //   outbound_convective_coefficient_new=
+			  //     new_boundary_flux.outbound_heat_coefficient();
+			  //   inbound_heat_flux_new=
+			  //     new_boundary_flux.inbound_heat_flux();
+			    
+			  //   cell_index_to_new_outbound_coefficient[cell]
+			  //     =outbound_convective_coefficient_new;
+			  //   cell_index_to_new_inbound_flux[cell]
+			  //     =inbound_heat_flux_new;
+			    
+			  //   if (face_boundary_indicator==boundary_id_road)
+			  //     {
+			  // 	new_boundary_flux
+			  // 	  .save_energy_and_coefficients(road_heat_fluxes[timestep_number-1],
+			  // 					time_step,
+			  // 					cell_face_diameter,
+			  // 					theta);
+								    
+			  // 	cell_index_to_new_boundary_coefficient_and_fluxes_road[cell][0]
+			  // 	  =new_solar_heat_flux;
+			  // 	cell_index_to_new_boundary_coefficient_and_fluxes_road[cell][1]
+			  // 	  =new_inbound_convective_heat_flux;
+			  // 	cell_index_to_new_boundary_coefficient_and_fluxes_road[cell][2]
+			  // 	  =new_inbound_evaporative_heat_flux;
+			  // 	cell_index_to_new_boundary_coefficient_and_fluxes_road[cell][3]
+			  // 	  =new_inbound_infrared_heat_flux;
+			  // 	cell_index_to_new_boundary_coefficient_and_fluxes_road[cell][4]
+			  // 	  =new_outbound_convective_coefficient;
+			  // 	cell_index_to_new_boundary_coefficient_and_fluxes_road[cell][5]
+			  // 	  =new_outbound_infrared_coefficient;
+			  // 	cell_index_to_new_boundary_coefficient_and_fluxes_road[cell][6]
+			  // 	  =new_outbound_evaporative_coefficient;
+			  //     }
+			  //   else
+			  //     {
+			  // 	new_boundary_flux
+			  // 	  .save_energy_and_coefficients(soil_heat_fluxes[timestep_number-1],
+			  // 					time_step,
+			  // 					cell_face_diameter,
+			  // 					theta);
+				
+			  // 	cell_index_to_new_boundary_coefficient_and_fluxes_soil[cell][0]
+			  // 	  =new_solar_heat_flux;
+			  // 	cell_index_to_new_boundary_coefficient_and_fluxes_soil[cell][1]
+			  // 	  =new_inbound_convective_heat_flux;
+			  // 	cell_index_to_new_boundary_coefficient_and_fluxes_soil[cell][2]
+			  // 	  =new_inbound_evaporative_heat_flux;
+			  // 	cell_index_to_new_boundary_coefficient_and_fluxes_soil[cell][3]
+			  // 	  =new_inbound_infrared_heat_flux;
+			  // 	cell_index_to_new_boundary_coefficient_and_fluxes_soil[cell][4]
+			  // 	  =new_outbound_convective_coefficient;
+			  // 	cell_index_to_new_boundary_coefficient_and_fluxes_soil[cell][5]
+			  // 	  =new_outbound_infrared_coefficient;
+			  // 	cell_index_to_new_boundary_coefficient_and_fluxes_soil[cell][6]
+			  // 	  =new_outbound_evaporative_coefficient;
+			  //     }
+			  // }
+		      	  /*
+		      	   * Save the calculated heat fluxes.
+		      	   */
+			  // double cell_face_diameter=cell->face(face)->diameter();
+			  // if (face_boundary_indicator==boundary_id_road)
+			  //   {
+			  //     road_heat_fluxes[timestep_number-1][0]+=//J/m
+			  // 	time_step*cell_face_diameter*
+			  // 	(theta*new_solar_heat_flux+
+			  // 	 (1.-theta)*old_solar_heat_flux);
+			  //     road_heat_fluxes[timestep_number-1][1]+=//J/m
+			  // 	time_step*cell_face_diameter*
+			  // 	(theta*new_inbound_convective_heat_flux+
+			  // 	 (1.-theta)*old_inbound_convective_heat_flux);
+			  //     road_heat_fluxes[timestep_number-1][2]+=//J/m
+			  // 	time_step*cell_face_diameter*
+			  // 	(theta*new_inbound_evaporative_heat_flux+
+			  // 	 (1.-theta)*old_inbound_evaporative_heat_flux);
+			  //     road_heat_fluxes[timestep_number-1][3]+=//J/m
+			  // 	time_step*cell_face_diameter*
+			  // 	(theta*new_inbound_infrared_heat_flux+
+			  // 	 (1.-theta)*old_inbound_infrared_heat_flux);
+			  //     road_heat_fluxes[timestep_number-1][4]+=//J/m
+			  // 	time_step*cell_face_diameter*
+			  // 	(theta*new_outbound_convective_coefficient*new_surface_temperature+
+			  // 	 (1.-theta)*old_outbound_convective_coefficient*old_surface_temperature);
+			  //     road_heat_fluxes[timestep_number-1][5]+=//J/m
+			  // 	time_step*cell_face_diameter*
+			  // 	(theta*new_outbound_infrared_coefficient*new_surface_temperature+
+			  // 	 (1.-theta)*old_outbound_infrared_coefficient*old_surface_temperature);
+			  //     road_heat_fluxes[timestep_number-1][6]+=
+			  // 	theta*new_outbound_convective_coefficient+
+			  // 	(1.-theta)*old_outbound_convective_coefficient;
+			  //     road_heat_fluxes[timestep_number-1][7]+=
+			  // 	theta*new_outbound_infrared_coefficient+
+			  // 	(1.-theta)*old_outbound_infrared_coefficient;
+			  //     road_heat_fluxes[timestep_number-1][8]+=//J/m
+			  // 	time_step*cell_face_diameter*
+			  // 	(theta*outbound_convective_coefficient_new*new_surface_temperature+
+			  // 	 (1.-theta)*outbound_convective_coefficient_old*old_surface_temperature);
+			  //     road_heat_fluxes[timestep_number-1][9]+=//J/m
+			  // 	time_step*cell_face_diameter*
+			  // 	(theta*inbound_heat_flux_new+
+			  // 	 (1.-theta)*inbound_heat_flux_old);
+			  //     faces_on_road_surface++;
+			  //   }
+			  // else if (face_boundary_indicator==boundary_id_soil)
+			  //   {			      
+			  //     soil_heat_fluxes[timestep_number-1][0]+=//J/m
+			  // 	time_step*cell_face_diameter*
+			  // 	(theta*new_solar_heat_flux+
+			  // 	 (1.-theta)*old_solar_heat_flux);
+			  //     soil_heat_fluxes[timestep_number-1][1]+=//J/m
+			  // 	time_step*cell_face_diameter*
+			  // 	(theta*new_inbound_convective_heat_flux+
+			  // 	 (1.-theta)*old_inbound_convective_heat_flux);
+			  //     soil_heat_fluxes[timestep_number-1][2]+=//J/m
+			  // 	time_step*cell_face_diameter*
+			  // 	(theta*new_inbound_evaporative_heat_flux+
+			  // 	 (1.-theta)*old_inbound_evaporative_heat_flux);
+			  //     soil_heat_fluxes[timestep_number-1][3]+=//J/m
+			  // 	time_step*cell_face_diameter*
+			  // 	(theta*new_inbound_infrared_heat_flux+
+			  // 	 (1.-theta)*old_inbound_infrared_heat_flux);
+			  //     soil_heat_fluxes[timestep_number-1][4]+=//J/m
+			  // 	time_step*cell_face_diameter*
+			  // 	(theta*new_outbound_convective_coefficient*new_surface_temperature+
+			  // 	 (1.-theta)*old_outbound_convective_coefficient*old_surface_temperature);
+			  //     soil_heat_fluxes[timestep_number-1][5]+=//J/m
+			  // 	time_step*cell_face_diameter*
+			  // 	(theta*new_outbound_infrared_coefficient*new_surface_temperature+
+			  // 	 (1.-theta)*old_outbound_infrared_coefficient*old_surface_temperature);
+			  //     soil_heat_fluxes[timestep_number-1][6]+=
+			  // 	theta*new_outbound_convective_coefficient+
+			  // 	(1.-theta)*old_outbound_convective_coefficient;
+			  //     soil_heat_fluxes[timestep_number-1][7]+=
+			  // 	theta*new_outbound_infrared_coefficient+
+			  // 	(1.-theta)*old_outbound_infrared_coefficient;
+			  //     soil_heat_fluxes[timestep_number-1][8]+=//J/m
+			  // 	time_step*cell_face_diameter*
+			  // 	(theta*outbound_convective_coefficient_new*new_surface_temperature+
+			  // 	 (1.-theta)*outbound_convective_coefficient_old*old_surface_temperature);
+			  //     soil_heat_fluxes[timestep_number-1][9]+=//J/m
+			  // 	time_step*cell_face_diameter*
+			  // 	(theta*inbound_heat_flux_new+
+			  // 	 (1.-theta)*inbound_heat_flux_old);				
+			  //     faces_on_soil_surface++;
+			  //   }
+			  // else
+			  //   {
+			  //     pcout << "Error. face_boundary_id " << face_boundary_indicator << " not implemented.";
+			  //     pcout << std::endl;
+			  //     throw 1;
+			  //   }
 		      	}
 		    }
 		  // collector and storage pipes in 2D
@@ -2168,103 +2208,103 @@ namespace TRL
   template<int dim>
   void Heat_Pipe<dim>::update_met_data()
   {
-	  if (date_and_time.size()==0 &&
-		  met_data.size()     ==0)
+    if (date_and_time.size()==0 &&
+	met_data.size()     ==0)
+      {
+	if (analytic_met_data)
 	  {
-		  if (analytic_met_data)
-		  {
-			  std::vector< std::vector<int> > initial_date_wrapper;
-			  initial_date_wrapper.push_back(initial_date);
+	    std::vector< std::vector<int> > initial_date_wrapper;
+	    initial_date_wrapper.push_back(initial_date);
 
-			  std::vector< std::vector<int> > initial_date_in_seconds;
+	    std::vector< std::vector<int> > initial_date_in_seconds;
 
-			  DataTools data_tools;
-			  data_tools.date_to_seconds(initial_date_wrapper,
-					  initial_date_in_seconds);
-			  std::vector< std::vector<int> > all_dates_in_seconds;
-			  for (unsigned int i=0; i<=timestep_number_max; i++)
-			  {
-				  std::vector<int> all_dates_in_seconds_line;
+	    DataTools data_tools;
+	    data_tools.date_to_seconds(initial_date_wrapper,
+				       initial_date_in_seconds);
+	    std::vector< std::vector<int> > all_dates_in_seconds;
+	    for (unsigned int i=0; i<=timestep_number_max; i++)
+	      {
+		std::vector<int> all_dates_in_seconds_line;
 
-				  all_dates_in_seconds_line.push_back(initial_date_in_seconds[0][0] +
-						  ((int)time_step*i));
+		all_dates_in_seconds_line.push_back(initial_date_in_seconds[0][0] +
+						    ((int)time_step*i));
 
-				  all_dates_in_seconds.push_back(all_dates_in_seconds_line);
-			  }
+		all_dates_in_seconds.push_back(all_dates_in_seconds_line);
+	      }
 
-			  data_tools.seconds_to_date(date_and_time,
-					  all_dates_in_seconds);
+	    data_tools.seconds_to_date(date_and_time,
+				       all_dates_in_seconds);
 
-			  AnalyticSolution analytic_solution(0,0,0,"",false,false,type_of_weather);
-			  for (unsigned int i=0; i<date_and_time.size(); i++)
-			  {
-				  std::vector<double> met_data_line;
-				  met_data_line
-				  .push_back(analytic_solution.get_analytic_air_temperature(all_dates_in_seconds[i][0]));
-				  met_data_line
-				  .push_back(analytic_solution.get_analytic_relative_humidity(/*initial_time*/));
-				  met_data_line
-				  .push_back(analytic_solution.get_analytic_wind_speed(/*initial_time*/));
-				  met_data_line
-				  .push_back(/*wind direction*/0.);
-				  met_data_line
-				  .push_back(analytic_solution.get_analytic_solar_radiation(all_dates_in_seconds[i][0]));
-				  met_data_line
-				  .push_back(analytic_solution.get_analytic_precipitation(/*initial_time*/));
-				  /*
-				   * there are negative entries in solar radiation and positive
-				   * entries in the middle of the night, this should help fix it.
-				   */
-				  // if (met_data_line[4]<0.)
-				  //   met_data_line[4]=0;
-				  // if (((date_and_time[i][3]>=21)||
-				  //      (date_and_time[i][3]<=2))&&
-				  //     (met_data_line[4]>0.))
-				  //   met_data_line[4]=0;
-				  met_data.push_back(met_data_line);
-			  }
-			  //output met data
-			  std::string output_filename="met_data_ph_";
-			  std::ostringstream os;
-			  os << preheating_step;
-			  output_filename+=os.str() + ".txt";
-			  std::ofstream file (output_filename.c_str());
-			  if (!file.is_open())
-				  throw 2;
-			  pcout << "Writing file: " << output_filename.c_str() << std::endl;
-			  data_tools.print_data(file,
-					  met_data,
-					  date_and_time);
-			  file.close();
-			  if (file.is_open())
-				  throw 3;
-		  }
-		  else
-		  {
-			  DataTools data_tools;
-			  data_tools.read_met_data(date_and_time,
-					  met_data,
-					  time_step,
-					  preheating_step,
-					  met_data_type,
-					  input_path);
-		  }
-		  pcout << "\tAvailable met lines: " << met_data.size()
-	    		  << std::endl << std::endl;
+	    AnalyticSolution analytic_solution(0,0,0,"",false,false,type_of_weather);
+	    for (unsigned int i=0; i<date_and_time.size(); i++)
+	      {
+		std::vector<double> met_data_line;
+		met_data_line
+		  .push_back(analytic_solution.get_analytic_air_temperature(all_dates_in_seconds[i][0]));
+		met_data_line
+		  .push_back(analytic_solution.get_analytic_relative_humidity(/*initial_time*/));
+		met_data_line
+		  .push_back(analytic_solution.get_analytic_wind_speed(/*initial_time*/));
+		met_data_line
+		  .push_back(/*wind direction*/0.);
+		met_data_line
+		  .push_back(analytic_solution.get_analytic_solar_radiation(all_dates_in_seconds[i][0]));
+		met_data_line
+		  .push_back(analytic_solution.get_analytic_precipitation(/*initial_time*/));
+		/*
+		 * there are negative entries in solar radiation and positive
+		 * entries in the middle of the night, this should help fix it.
+		 */
+		// if (met_data_line[4]<0.)
+		//   met_data_line[4]=0;
+		// if (((date_and_time[i][3]>=21)||
+		//      (date_and_time[i][3]<=2))&&
+		//     (met_data_line[4]>0.))
+		//   met_data_line[4]=0;
+		met_data.push_back(met_data_line);
+	      }
+	    //output met data
+	    std::string output_filename="met_data_ph_";
+	    std::ostringstream os;
+	    os << preheating_step;
+	    output_filename+=os.str() + ".txt";
+	    std::ofstream file (output_filename.c_str());
+	    if (!file.is_open())
+	      throw 2;
+	    pcout << "Writing file: " << output_filename.c_str() << std::endl;
+	    data_tools.print_data(file,
+				  met_data,
+				  date_and_time);
+	    file.close();
+	    if (file.is_open())
+	      throw 3;
 	  }
-	  old_air_temperature   = met_data[timestep_number-1][0];
-	  old_relative_humidity = met_data[timestep_number-1][1];
-	  old_wind_speed        = met_data[timestep_number-1][2];
-	  old_wind_direction    = met_data[timestep_number-1][3];
-	  old_solar_radiation   = met_data[timestep_number-1][4];
-	  old_precipitation     = met_data[timestep_number-1][5];
-	  //
-	  new_air_temperature   = met_data[timestep_number][0];
-	  new_relative_humidity = met_data[timestep_number][1];
-	  new_wind_speed        = met_data[timestep_number][2];
-	  new_wind_direction    = met_data[timestep_number][3];
-	  new_solar_radiation   = met_data[timestep_number][4];
-	  new_precipitation     = met_data[timestep_number][5];
+	else
+	  {
+	    DataTools data_tools;
+	    data_tools.read_met_data(date_and_time,
+				     met_data,
+				     time_step,
+				     preheating_step,
+				     met_data_type,
+				     input_path);
+	  }
+	pcout << "\tAvailable met lines: " << met_data.size()
+	      << std::endl << std::endl;
+      }
+    old_air_temperature   = met_data[timestep_number-1][0];
+    old_relative_humidity = met_data[timestep_number-1][1];
+    old_wind_speed        = met_data[timestep_number-1][2];
+    old_wind_direction    = met_data[timestep_number-1][3];
+    old_solar_radiation   = met_data[timestep_number-1][4];
+    old_precipitation     = met_data[timestep_number-1][5];
+    //
+    new_air_temperature   = met_data[timestep_number][0];
+    new_relative_humidity = met_data[timestep_number][1];
+    new_wind_speed        = met_data[timestep_number][2];
+    new_wind_direction    = met_data[timestep_number][3];
+    new_solar_radiation   = met_data[timestep_number][4];
+    new_precipitation     = met_data[timestep_number][5];
   }
   
   template<int dim>
