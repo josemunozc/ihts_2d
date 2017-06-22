@@ -2801,7 +2801,8 @@ namespace TRL
 		   * Print preheating files
 		   */
 		  {
-		    std::ofstream file_temperature (output_path+"/"+preheating_output_filename.c_str());
+		    std::string temp=output_path+"/"+preheating_output_filename;
+		    std::ofstream file_temperature(temp.c_str());
 		    if (!file_temperature.is_open())
 		      throw 2;
 		    localized_solution_temperature.block_write(file_temperature);
