@@ -307,24 +307,25 @@ namespace TRL
       cell_index_to_pipe_number; // relate boundary cells on pipes with its pipe number (0-19)
     std::map<typename DoFHandler<dim>::active_cell_iterator,double >
     cell_index_to_old_surface_temperature,
-      cell_index_to_current__new_surface_temperature,
-      cell_index_to_previous_new_surface_temperature,
-      cell_index_to_old_outbound_coefficient,
-      cell_index_to_new_outbound_coefficient,
-      cell_index_to_old_inbound_flux,
-      cell_index_to_new_inbound_flux;
+      cell_index_to_new_current__surface_temperature,
+      cell_index_to_new_previous_surface_temperature;
+      // cell_index_to_old_outbound_coefficient,
+      // cell_index_to_new_outbound_coefficient,
+      // cell_index_to_old_inbound_flux,
+      // cell_index_to_new_inbound_flux;
 
-    std::map<typename DoFHandler<dim>::active_cell_iterator,std::vector<double> >
-    cell_index_to_old_boundary_coefficient_and_fluxes_road,
-      cell_index_to_old_boundary_coefficient_and_fluxes_soil,
-      cell_index_to_new_boundary_coefficient_and_fluxes_road,
-      cell_index_to_new_boundary_coefficient_and_fluxes_soil;
+    // std::map<typename DoFHandler<dim>::active_cell_iterator,std::vector<double> >
+    // cell_index_to_old_boundary_coefficient_and_fluxes_road,
+    //   cell_index_to_old_boundary_coefficient_and_fluxes_soil,
+    //   cell_index_to_new_boundary_coefficient_and_fluxes_road,
+    //   cell_index_to_new_boundary_coefficient_and_fluxes_soil;
     /*
      * boundary id - material name - porosity - saturation
      */
     //    std::map<unsigned int,std::tuple<std::string,double,double> > material_data;
     //std::map<unsigned int, std::string> map_material_id_to_material_name
     std::map<unsigned int,std::pair<std::string,std::vector<double> > >map_material_id_to_material_name;
+    std::map<unsigned int,unsigned int> boundary_count;
     /*-------------met data vectors and variables----------------*/
       std::vector< std::vector<int> >    date_and_time;
     std::vector< std::vector<double> > met_data;
@@ -540,7 +541,7 @@ namespace TRL
     if (preheating_step==1 && time_step==3600)
       {
 	time_step=3600;
-	timestep_number_max=10;//4300;//70079; // 8 years
+	timestep_number_max=24;//4300;//70079; // 8 years
 	initial_date.reserve(6);
 	initial_date.push_back(1);
 	initial_date.push_back(9);
@@ -1025,6 +1026,10 @@ namespace TRL
     std::vector<unsigned int> local_dof_indices (dofs_per_cell);
     const Vector<double> localized_old_solution(old_solution);
     const Vector<double> localized_new_solution(solution);
+    std::vector<double> old_function_values     (n_q_points);
+    std::vector<double> new_function_values     (n_q_points);
+    std::vector<double> old_function_values_face(n_face_q_points);
+    std::vector<double> new_function_values_face(n_face_q_points);
     
     typename DoFHandler<dim>::active_cell_iterator
       cell = dof_handler.begin_active(),
@@ -1032,57 +1037,66 @@ namespace TRL
     for (; cell!=endc; ++cell)
       if (cell->subdomain_id()==this_mpi_process)
 	{
-	  fe_values.reinit(cell);
 	  cell_mass_matrix=0.;
 	  cell_laplace_matrix_new=0.;
 	  cell_laplace_matrix_old=0.;
 	  cell_rhs=0.;
-
-	  double thermal_conductivity=0.;
-	  double volumetric_heat_capacity=0.;
-	  {
-	    double old_temperature
-	      =VectorTools::point_value(dof_handler,
-					localized_old_solution,
-					cell->center());
-	    double new_temperature=0.;
-	    if (timestep_number==1 && iteration==0)
-	      new_temperature
-		=old_temperature;
-	    else
-	      new_temperature
-		=VectorTools::point_value(dof_handler,
-					  localized_new_solution,
-					  cell->center());
-	    // PorousMaterial material(find_material_name(cell->material_id()),
-	    // 			    find_material_porosity(cell->material_id()),
-	    // 			    find_material_saturation(cell->material_id()));
-	    Material material(find_material_name(cell->material_id()));
-	    thermal_conductivity=
-	      material.thermal_conductivity();
-	    volumetric_heat_capacity=
-	      material.volumetric_heat_capacity(theta*new_temperature+(1.-theta)*old_temperature);
-	  }	  
+	  fe_values.reinit(cell);
+	  fe_values.get_function_values(localized_old_solution,old_function_values);
+	  fe_values.get_function_values(localized_new_solution,new_function_values);
+	  
+	  Material material(find_material_name(cell->material_id()));
+	  //{
+	  // double old_temperature=10.;
+	  // VectorTools::point_value(dof_handler,
+	  // 				localized_old_solution,
+	  // 				cell->center());
+	  // double new_temperature=10.;
+	  // if (timestep_number==1 && iteration==0)
+	  //   new_temperature=
+	  // 	old_temperature;
+	  // else
+	  //   new_temperature=
+	  // 	VectorTools::point_value(dof_handler,
+	  // 				 localized_new_solution,
+	  // 				 cell->center());
+	  // PorousMaterial material(find_material_name(cell->material_id()),
+	  // 			    find_material_porosity(cell->material_id()),
+	  // 			    find_material_saturation(cell->material_id()));
+	  // thermal_conductivity=
+	  //   material.thermal_conductivity();
+	  // volumetric_heat_capacity=
+	  //   material.volumetric_heat_capacity(theta*new_temperature+(1.-theta)*old_temperature);
+	  //}
 	  for (unsigned int q_point=0; q_point<n_q_points; ++q_point)
-	    for (unsigned int i=0; i<dofs_per_cell; ++i)
-	      for (unsigned int j=0; j<dofs_per_cell; ++j)
-		{
-		  cell_mass_matrix(i,j)+=
-		    volumetric_heat_capacity*
-		    fe_values.shape_value(i,q_point)*
-		    fe_values.shape_value(j,q_point)*
-		    fe_values.JxW(q_point);
-		  cell_laplace_matrix_new(i,j)+=
-		    thermal_conductivity*
-		    fe_values.shape_grad(i,q_point) *
-		    fe_values.shape_grad(j,q_point) *
-		    fe_values.JxW(q_point);
-		  cell_laplace_matrix_old(i,j)+=
-		    thermal_conductivity *
-		    fe_values.shape_grad(i,q_point) *
-		    fe_values.shape_grad(j,q_point) *
-		    fe_values.JxW(q_point);
-		}
+	    {
+	      double thermal_conductivity=
+		material.thermal_conductivity();
+	      double volumetric_heat_capacity=
+		material
+		.volumetric_heat_capacity(theta*new_function_values[q_point]+
+					  (1.-theta)*old_function_values_face[q_point]);
+	      
+	      for (unsigned int i=0; i<dofs_per_cell; ++i)
+		for (unsigned int j=0; j<dofs_per_cell; ++j)
+		  {
+		    cell_mass_matrix(i,j)+=
+		      volumetric_heat_capacity*
+		      fe_values.shape_value(i,q_point)*
+		      fe_values.shape_value(j,q_point)*
+		      fe_values.JxW(q_point);
+		    cell_laplace_matrix_new(i,j)+=
+		      thermal_conductivity*
+		      fe_values.shape_grad(i,q_point) *
+		      fe_values.shape_grad(j,q_point) *
+		      fe_values.JxW(q_point);
+		    cell_laplace_matrix_old(i,j)+=
+		      thermal_conductivity *
+		      fe_values.shape_grad(i,q_point) *
+		      fe_values.shape_grad(j,q_point) *
+		      fe_values.JxW(q_point);
+		  }
+	    }
 	  /*
 	   * We enter the next section if we found a cell face that represents a boundary.
 	   * Then we will calculate the corresponding heat flux according to the
@@ -1102,258 +1116,314 @@ namespace TRL
 		    ((face_boundary_indicator==boundary_id_collector) ||
 		     (face_boundary_indicator==boundary_id_storage  )))))
 		{
-		  /*
-		   * Variables for heat flux from surface. The convective coefficients below
-		   *
-		   * include both convective and infrared interactions since they can be
-		   * represented in a similar way (after the radiative coefficients have
-		   * been linearized).
-		   */
-		  double outbound_convective_coefficient_new=0.;
-		  double outbound_convective_coefficient_old=0.;
-		  double inbound_heat_flux_new=0.;
-		  double inbound_heat_flux_old=0.;
-
-		  if ((face_boundary_indicator==boundary_id_road) ||
-		      (face_boundary_indicator==boundary_id_soil))
-		    {
+		  fe_face_values.reinit(cell,face);
+		  fe_face_values.get_function_values(localized_old_solution,old_function_values_face);
+		  fe_face_values.get_function_values(localized_new_solution,new_function_values_face);
+		  // double old_surface_temperature=0;
+		  // double new_surface_temperature=0;
+		  //for (unsigned int q_face_point=0; q_point<n_q_points; ++q_point)
+		  // for (unsigned int q_face_point=0; q_face_point<n_face_q_points; ++q_face_point)
+		  //   {
+		  //     old_surface_temperature+=old_function_values_face[q_face_point]/n_face_q_points;
+		  //     new_surface_temperature+=new_function_values_face[q_face_point]/n_face_q_points;
+		  //   }
+		  for (unsigned int q_face_point=0; q_face_point<n_face_q_points; ++q_face_point)
+		    {		      
+		      double outbound_convective_coefficient_new=0.;
+		      double outbound_convective_coefficient_old=0.;
+		      double inbound_heat_flux_new=0.;
+		      double inbound_heat_flux_old=0.;
 		      /*
-		       * If 'analytic == true' then the remaining variables passed to the object of
-		       * class type 'BoundaryConditions' are irrelevant because they are redefined
-		       * when its flux members are called according to the 'time' provided.
+		       * Variables for heat flux from surface. The convective coefficients below
 		       *
-		       * Some of the heat transfer coefficients (infrared coefficients in particular)
-		       * depend on an estimation of the previous surface temperature. At the beggining
-		       * i thought it would be ok to just ask the point_value at each cell. The problem
-		       * is that this operation is highly costly (as it needs to iterate and interpolate
-		       * in the solution vector) and the cost is directly proportional to the number of
-		       * cells (making it unsuitable for 3D). So, a new strategy is needed.
+		       * include both convective and infrared interactions since they can be
+		       * represented in a similar way (after the radiative coefficients have
+		       * been linearized).
 		       */
-		      double old_surface_temperature
-			=VectorTools::point_value(dof_handler,
-						  localized_old_solution,
-						  cell->face(face)->center());
-		      double new_surface_temperature=0.;
-		      if (timestep_number==1 && iteration==0)
-			new_surface_temperature=
-			  old_surface_temperature;
-		      else
-			new_surface_temperature=
-			  VectorTools::point_value(dof_handler,
-						   localized_new_solution,
-						   cell->face(face)->center());
-		      /*
-		       * Heat flux from soil surface or road surface
-		       * */
-		      if ((author=="Herb"   ) ||
-		      	  (author=="Jansson") ||
-		      	  (author=="Best"   ))
-		      	{
-			  double override_shading_factor=0.;
-		      	  if (shading_factor_value>0 &&
-		      	      ((face_boundary_indicator==boundary_id_road) &&
-		      	       (((date_and_time[timestep_number][3]>=12) &&
-				 (date_and_time[timestep_number][3]<=16)) ||
-		      	  	((date_and_time[timestep_number][3]==17) &&
-				 (date_and_time[timestep_number][4]==00)))))
-		      	    override_shading_factor=shading_factor_value;
-			  
-		      	  std::string local_surface_type="soil";
-		      	  if ((dim==2 || dim==3) &&
-		      	      (face_boundary_indicator==boundary_id_road))
-		      	    {
-		      	      local_surface_type="road";
-		      	    }
-			  //-----------HEAT FLUXES AND COEFFICIENTS---------//
-			  BoundaryFlux old_boundary_flux(met_data[timestep_number-1],
-							 old_surface_temperature,
-							 canopy_density,
-							 override_shading_factor,
-							 local_surface_type);
-			  outbound_convective_coefficient_old=
-			    old_boundary_flux.outbound_heat_coefficient();
-			  inbound_heat_flux_old=
-			    old_boundary_flux.inbound_heat_flux();
-			  
-			  double tav_surface_temperature
-			    =1.0*old_surface_temperature+
-			    0.0*new_surface_temperature;
-			  BoundaryFlux new_boundary_flux(met_data[timestep_number],
-							 tav_surface_temperature,
-							 canopy_density,
-							 override_shading_factor,
-							 local_surface_type);
-			  outbound_convective_coefficient_new=
-			    new_boundary_flux.outbound_heat_coefficient();
-			  inbound_heat_flux_new=
-			    new_boundary_flux.inbound_heat_flux();
-			  
-			  double cell_face_diameter=cell->face(face)->diameter();
+		      if ((face_boundary_indicator==boundary_id_road) ||
+			  (face_boundary_indicator==boundary_id_soil))
+			{
+			  /*
+			   * If 'analytic == true' then the remaining variables passed to the object of
+			   * class type 'BoundaryConditions' are irrelevant because they are redefined
+			   * when its flux members are called according to the 'time' provided.
+			   *
+			   * Some of the heat transfer coefficients (infrared coefficients in particular)
+			   * depend on an estimation of the previous surface temperature. At the beggining
+			   * i thought it would be ok to just ask the point_value at each cell. The problem
+			   * is that this operation is highly costly (as it needs to iterate and interpolate
+			   * in the solution vector) and the cost is directly proportional to the number of
+			   * cells (making it unsuitable for 3D). So, a new strategy is needed.
+			   */
+			  double old_surface_temperature=old_avg_soil_surface_temperature;
+			  //double old_surface_temperature=old_function_values_face[q_face_point];
+			  // =VectorTools::point_value(dof_handler,
+			  // 			  localized_old_solution,
+			  // 			  cell->face(face)->center());
+			  double new_surface_temperature=previous_new_avg_soil_surface_temperature;
+
 			  if (face_boundary_indicator==boundary_id_road)
 			    {
-			      road_heat_fluxes[timestep_number-1][0]+=//J/m
-				time_step*cell_face_diameter*
-				((   theta)*new_boundary_flux.inbound_heat_flux_solar()+
-				 (1.-theta)*old_boundary_flux.inbound_heat_flux_solar());
-			      road_heat_fluxes[timestep_number-1][1]+=//J/m
-				time_step*cell_face_diameter*
-				((   theta)*new_boundary_flux.inbound_heat_flux_convective()+
-				 (1.-theta)*old_boundary_flux.inbound_heat_flux_convective());
-			      road_heat_fluxes[timestep_number-1][2]+=//J/m
-				time_step*cell_face_diameter*
-				((   theta)*new_boundary_flux.inbound_heat_flux_evaporative()+
-				 (1.-theta)*old_boundary_flux.inbound_heat_flux_evaporative());
-			      road_heat_fluxes[timestep_number-1][3]+=//J/m
-				time_step*cell_face_diameter*
-				((   theta)*new_boundary_flux.inbound_heat_flux_infrared()+
-				 (1.-theta)*old_boundary_flux.inbound_heat_flux_infrared());
-			      road_heat_fluxes[timestep_number-1][4]+=//J/m
-				time_step*cell_face_diameter*
-				((   theta)*new_boundary_flux.outbound_heat_coefficient_convective()*
-				 new_surface_temperature+
-				 (1.-theta)*old_boundary_flux.outbound_heat_coefficient_convective()*
-				 old_surface_temperature);
-			      road_heat_fluxes[timestep_number-1][5]+=//J/m
-				time_step*cell_face_diameter*
-				((   theta)*new_boundary_flux.outbound_heat_coefficient_infrared()*
-				 new_surface_temperature+
-				 (1.-theta)*old_boundary_flux.outbound_heat_coefficient_infrared()*
-				 old_surface_temperature);
-			      road_heat_fluxes[timestep_number-1][6]+=
-				(   theta)*new_boundary_flux.outbound_heat_coefficient_convective()+
-				(1.-theta)*old_boundary_flux.outbound_heat_coefficient_convective();
-			      road_heat_fluxes[timestep_number-1][7]+=
-				(   theta)*new_boundary_flux.outbound_heat_coefficient_infrared()+
-				(1.-theta)*old_boundary_flux.outbound_heat_coefficient_infrared();
-			      road_heat_fluxes[timestep_number-1][8]+=//J/m
-				time_step*cell_face_diameter*
-				((   theta)*outbound_convective_coefficient_new*new_surface_temperature+
-				 (1.-theta)*outbound_convective_coefficient_old*old_surface_temperature);
-			      road_heat_fluxes[timestep_number-1][9]+=//J/m
-				time_step*cell_face_diameter*
-				((   theta)*inbound_heat_flux_new+
-				 (1.-theta)*inbound_heat_flux_old);
+			      old_surface_temperature=old_avg_road_surface_temperature;
+			      new_surface_temperature=previous_new_avg_road_surface_temperature;
 			    }
-			  else if (face_boundary_indicator==boundary_id_soil)
+			    
+			  //double new_surface_temperature=new_function_values_face[q_face_point];
+			  // if (timestep_number==1 && iteration==0)
+			  // 	new_surface_temperature=
+			  // 	  old_surface_temperature;
+			  // else
+			  // 	new_surface_temperature
+			  // 	  VectorTools::point_value(dof_handler,
+			  // 	  			   localized_new_solution,
+			  // 	  			   cell->face(face)->center());
+			  /*
+			   * Heat flux from soil surface or road surface
+			   * */
+			  if ((author=="Herb"   ) ||
+			      (author=="Jansson") ||
+			      (author=="Best"   ))
 			    {
-			      soil_heat_fluxes[timestep_number-1][0]+=//J/m
-				time_step*cell_face_diameter*
-				((   theta)*new_boundary_flux.inbound_heat_flux_solar()+
-				 (1.-theta)*old_boundary_flux.inbound_heat_flux_solar());
-			      soil_heat_fluxes[timestep_number-1][1]+=//J/m
-				time_step*cell_face_diameter*
-				((   theta)*new_boundary_flux.inbound_heat_flux_convective()+
-				 (1.-theta)*old_boundary_flux.inbound_heat_flux_convective());
-			      soil_heat_fluxes[timestep_number-1][2]+=//J/m
-				time_step*cell_face_diameter*
-				((   theta)*new_boundary_flux.inbound_heat_flux_evaporative()+
-				 (1.-theta)*old_boundary_flux.inbound_heat_flux_evaporative());
-			      soil_heat_fluxes[timestep_number-1][3]+=//J/m
-				time_step*cell_face_diameter*
-				((   theta)*new_boundary_flux.inbound_heat_flux_infrared()+
-				 (1.-theta)*old_boundary_flux.inbound_heat_flux_infrared());
-			      soil_heat_fluxes[timestep_number-1][4]+=//J/m
-				time_step*cell_face_diameter*
-				((   theta)*new_boundary_flux.outbound_heat_coefficient_convective()*
-				 new_surface_temperature+
-				 (1.-theta)*old_boundary_flux.outbound_heat_coefficient_convective()*
-				 old_surface_temperature);
-			      soil_heat_fluxes[timestep_number-1][5]+=//J/m
-				time_step*cell_face_diameter*
-				((   theta)*new_boundary_flux.outbound_heat_coefficient_infrared()*
-				 new_surface_temperature+
-				 (1.-theta)*old_boundary_flux.outbound_heat_coefficient_infrared()*
-				 old_surface_temperature);
-			      soil_heat_fluxes[timestep_number-1][6]+=
-				(   theta)*new_boundary_flux.outbound_heat_coefficient_convective()+
-				(1.-theta)*old_boundary_flux.outbound_heat_coefficient_convective();
-			      soil_heat_fluxes[timestep_number-1][7]+=
-				(   theta)*new_boundary_flux.outbound_heat_coefficient_infrared()+
-				(1.-theta)*old_boundary_flux.outbound_heat_coefficient_infrared();
-			      soil_heat_fluxes[timestep_number-1][8]+=//J/m
-				time_step*cell_face_diameter*
-				((   theta)*outbound_convective_coefficient_new*new_surface_temperature+
-				 (1.-theta)*outbound_convective_coefficient_old*old_surface_temperature);
-			      soil_heat_fluxes[timestep_number-1][9]+=//J/m
-				time_step*cell_face_diameter*
-				((   theta)*inbound_heat_flux_new+
-				 (1.-theta)*inbound_heat_flux_old);
+			      double override_shading_factor=0.;
+			      if (shading_factor_value>0 &&
+			          ((face_boundary_indicator==boundary_id_road) &&
+			           (((date_and_time[timestep_number][3]>=12) &&
+			      	 (date_and_time[timestep_number][3]<=16)) ||
+			      	((date_and_time[timestep_number][3]==17) &&
+			      	 (date_and_time[timestep_number][4]==00)))))
+			        override_shading_factor=shading_factor_value;
+			      
+			      std::string local_surface_type="soil";
+			      if ((dim==2 || dim==3) &&
+			          (face_boundary_indicator==boundary_id_road))
+			        {
+			          local_surface_type="road";
+			        }
+			      //-----------HEAT FLUXES AND COEFFICIENTS---------//
+			      // double tav_surface_temperature
+			      //   =0.5*old_surface_temperature+
+			      //   0.5*new_surface_temperature;
+			      BoundaryFlux old_boundary_flux(met_data[timestep_number-1],
+							     0.5*old_surface_temperature+0.5*new_surface_temperature,
+							     canopy_density,
+							     override_shading_factor,
+							     local_surface_type);
+			      outbound_convective_coefficient_old=
+			        old_boundary_flux.outbound_heat_coefficient();
+			      inbound_heat_flux_old=
+			        old_boundary_flux.inbound_heat_flux();
+			  
+
+			      BoundaryFlux new_boundary_flux(met_data[timestep_number],
+							     0.5*old_surface_temperature+0.5*new_surface_temperature,
+							     canopy_density,
+							     override_shading_factor,
+							     local_surface_type);
+			      outbound_convective_coefficient_new=
+			        new_boundary_flux.outbound_heat_coefficient();
+			      inbound_heat_flux_new=
+			        new_boundary_flux.inbound_heat_flux();
+			  
+			      // outbound_convective_coefficient_old=
+			      // 	10;
+			      // inbound_heat_flux_old=
+			      // 	100*cos(M_PI*(timestep_number-1)/12.);
+			  
+			      // outbound_convective_coefficient_new=
+			      // 	10;
+			      // inbound_heat_flux_new=
+			      // 	100*cos(M_PI*(timestep_number)/12.);
+			  
+			      double cell_face_diameter=cell->face(face)->diameter();
+			      if (q_face_point==0)
+				{
+				  if (face_boundary_indicator==boundary_id_road)
+				    {
+				      road_heat_fluxes[timestep_number-1][0]+=//J/m
+				      	time_step*cell_face_diameter*
+				      	((   theta)*new_boundary_flux.inbound_heat_flux_solar()+
+				      	 (1.-theta)*old_boundary_flux.inbound_heat_flux_solar());
+				      road_heat_fluxes[timestep_number-1][1]+=//J/m
+				      	time_step*cell_face_diameter*
+				      	((   theta)*new_boundary_flux.inbound_heat_flux_convective()+
+				      	 (1.-theta)*old_boundary_flux.inbound_heat_flux_convective());
+				      road_heat_fluxes[timestep_number-1][2]+=//J/m
+				      	time_step*cell_face_diameter*
+				      	((   theta)*new_boundary_flux.inbound_heat_flux_evaporative()+
+				      	 (1.-theta)*old_boundary_flux.inbound_heat_flux_evaporative());
+				      road_heat_fluxes[timestep_number-1][3]+=//J/m
+				      	time_step*cell_face_diameter*
+				      	((   theta)*new_boundary_flux.inbound_heat_flux_infrared()+
+				      	 (1.-theta)*old_boundary_flux.inbound_heat_flux_infrared());
+				      road_heat_fluxes[timestep_number-1][4]+=//J/m
+				      	time_step*cell_face_diameter*
+				      	((   theta)*new_boundary_flux.outbound_heat_coefficient_convective()*
+				      	 new_surface_temperature+
+				      	 (1.-theta)*old_boundary_flux.outbound_heat_coefficient_convective()*
+				      	 old_surface_temperature);
+				      road_heat_fluxes[timestep_number-1][5]+=//J/m
+				      	time_step*cell_face_diameter*
+				      	((   theta)*new_boundary_flux.outbound_heat_coefficient_infrared()*
+				      	 new_surface_temperature+
+				      	 (1.-theta)*old_boundary_flux.outbound_heat_coefficient_infrared()*
+				      	 old_surface_temperature);
+				      road_heat_fluxes[timestep_number-1][6]+=
+				      	(   theta)*new_boundary_flux.outbound_heat_coefficient_convective()+
+				      	(1.-theta)*old_boundary_flux.outbound_heat_coefficient_convective();
+				      road_heat_fluxes[timestep_number-1][7]+=
+				      	(   theta)*new_boundary_flux.outbound_heat_coefficient_infrared()+
+				      	(1.-theta)*old_boundary_flux.outbound_heat_coefficient_infrared();
+				      road_heat_fluxes[timestep_number-1][8]+=//J/m
+					time_step*cell_face_diameter*
+					((   theta)*outbound_convective_coefficient_new*new_surface_temperature+
+					 (1.-theta)*outbound_convective_coefficient_old*old_surface_temperature);
+				      road_heat_fluxes[timestep_number-1][9]+=//J/m
+					time_step*cell_face_diameter*
+					((   theta)*inbound_heat_flux_new+
+					 (1.-theta)*inbound_heat_flux_old);
+				    }
+				  else if (face_boundary_indicator==boundary_id_soil)
+				    {
+				      soil_heat_fluxes[timestep_number-1][0]+=//J/m
+				      	time_step*cell_face_diameter*
+				      	((   theta)*new_boundary_flux.inbound_heat_flux_solar()+
+				      	 (1.-theta)*old_boundary_flux.inbound_heat_flux_solar());
+				      soil_heat_fluxes[timestep_number-1][1]+=//J/m
+				      	time_step*cell_face_diameter*
+				      	((   theta)*new_boundary_flux.inbound_heat_flux_convective()+
+				      	 (1.-theta)*old_boundary_flux.inbound_heat_flux_convective());
+				      soil_heat_fluxes[timestep_number-1][2]+=//J/m
+				      	time_step*cell_face_diameter*
+				      	((   theta)*new_boundary_flux.inbound_heat_flux_evaporative()+
+				      	 (1.-theta)*old_boundary_flux.inbound_heat_flux_evaporative());
+				      soil_heat_fluxes[timestep_number-1][3]+=//J/m
+				      	time_step*cell_face_diameter*
+				      	((   theta)*new_boundary_flux.inbound_heat_flux_infrared()+
+				      	 (1.-theta)*old_boundary_flux.inbound_heat_flux_infrared());
+				      soil_heat_fluxes[timestep_number-1][4]+=//J/m
+				      	time_step*cell_face_diameter*
+				      	((   theta)*new_boundary_flux.outbound_heat_coefficient_convective()*
+				      	 new_surface_temperature+
+				      	 (1.-theta)*old_boundary_flux.outbound_heat_coefficient_convective()*
+				      	 old_surface_temperature);
+				      soil_heat_fluxes[timestep_number-1][5]+=//J/m
+				      	time_step*cell_face_diameter*
+				      	((   theta)*new_boundary_flux.outbound_heat_coefficient_infrared()*
+				      	 new_surface_temperature+
+				      	 (1.-theta)*old_boundary_flux.outbound_heat_coefficient_infrared()*
+				      	 old_surface_temperature);
+				      soil_heat_fluxes[timestep_number-1][6]+=
+				      	(   theta)*new_boundary_flux.outbound_heat_coefficient_convective()+
+				      	(1.-theta)*old_boundary_flux.outbound_heat_coefficient_convective();
+				      soil_heat_fluxes[timestep_number-1][7]+=
+				      	(   theta)*new_boundary_flux.outbound_heat_coefficient_infrared()+
+				      	(1.-theta)*old_boundary_flux.outbound_heat_coefficient_infrared();
+				      soil_heat_fluxes[timestep_number-1][8]+=//J/m
+					time_step*cell_face_diameter*
+					((   theta)*outbound_convective_coefficient_new*new_surface_temperature+
+					 (1.-theta)*outbound_convective_coefficient_old*old_surface_temperature);
+				      soil_heat_fluxes[timestep_number-1][9]+=//J/m
+					time_step*cell_face_diameter*
+					((   theta)*inbound_heat_flux_new+
+					 (1.-theta)*inbound_heat_flux_old);
+				    }
+				  else
+				    {
+				      pcout << "Error. face_boundary_id " << face_boundary_indicator
+					    << " not implemented.";
+				      pcout << std::endl;
+				      throw 1;
+				    }
+				}
+			      /*
+			       * Estimate snow surface temperature
+			       */
+			      // {
+			      //   double snow_thermal_conductivity=1.;//[W/mK]
+			      //   double snow_thickness=0.1; //[m]
+			      //   double snow_temperature_new=
+			      //     (inbound_heat_flux_new+
+			      //      (snow_thermal_conductivity/snow_thickness)*new_surface_temperature)
+			      //    /(outbound_convective_coefficient_new+snow_thermal_conductivity/snow_thickness);
+			      //   double snow_temperature_old=
+			      //     (inbound_heat_flux_old+
+			      //      (snow_thermal_conductivity/snow_thickness)*old_surface_temperature)
+			      //    /(outbound_convective_coefficient_old+snow_thermal_conductivity/snow_thickness);
+			      //   double snow_heat_flux_new=
+			      //     -(snow_thermal_conductivity/snow_thickness)*
+			      //     (snow_temperature_new-new_surface_temperature);
+			      //   double snow_heat_flux_old=
+			      //     -(snow_thermal_conductivity/snow_thickness)*
+			      //     (snow_temperature_old-old_surface_temperature);
+			      // }
+			    }
+			}
+		      // collector and storage pipes in 2D
+		      else if ((face_boundary_indicator==boundary_id_collector) ||
+			       (face_boundary_indicator==boundary_id_storage))
+			{
+			  /*
+			   * The heat fluxes are multiplied by -1. because these are
+			   * calculated from the point of view of the pipes, so, if
+			   * we have a positive value this means a loss of energy from
+			   * the soil
+			   */
+			  //unsigned int pipe_number=cell_index_to_pipe_number[cell];
+			  if (face_boundary_indicator==boundary_id_collector)
+			    {
+			      // inbound_heat_flux_old=-1.*old_pipe_heat_flux[pipe_number]/2.59666;//(2.17);
+			      // // inbound_heat_flux_new=-1.*(0.5*previous_new_pipe_heat_flux[pipe_number]+
+			      // // 			     0.5*current__new_pipe_heat_flux[pipe_number])/(2.17);
+			      //inbound_heat_flux_new=-1.*current__new_pipe_heat_flux[pipe_number]/2.59666;//(2.17);
+			      inbound_heat_flux_old=0.;
+			      inbound_heat_flux_new=0.;
 			    }
 			  else
 			    {
-			      pcout << "Error. face_boundary_id " << face_boundary_indicator << " not implemented.";
-			      pcout << std::endl;
-			      throw 1;
+			      //inbound_heat_flux_old=-1.*old_pipe_heat_flux[pipe_number]/2.59666;//(2.17);//(1.922);
+			      //// inbound_heat_flux_new=-1.*(0.5*previous_new_pipe_heat_flux[pipe_number]+
+			      // // 			     0.5*current__new_pipe_heat_flux[pipe_number])/(2.17);
+			      //inbound_heat_flux_new=-1.*current__new_pipe_heat_flux[pipe_number]/2.59666;//(2.17);
+			      inbound_heat_flux_old=0.;
+			      inbound_heat_flux_new=0.;
 			    }
-			}
-		    }
-		  // collector and storage pipes in 2D
-		  else if ((face_boundary_indicator==boundary_id_collector) ||
-			   (face_boundary_indicator==boundary_id_storage))
-		    {
-		      /*
-		       * The heat fluxes are multiplied by -1. because these are
-		       * calculated from the point of view of the pipes, so, if
-		       * we have a positive value this means a loss of energy from
-		       * the soil
-		       */
-		      //unsigned int pipe_number=cell_index_to_pipe_number[cell];
-		      if (face_boundary_indicator==boundary_id_collector)
-			{
-			  // inbound_heat_flux_old=-1.*old_pipe_heat_flux[pipe_number]/2.59666;//(2.17);
-			  // // inbound_heat_flux_new=-1.*(0.5*previous_new_pipe_heat_flux[pipe_number]+
-			  // // 			     0.5*current__new_pipe_heat_flux[pipe_number])/(2.17);
-			  // inbound_heat_flux_new=-1.*current__new_pipe_heat_flux[pipe_number]/2.59666;//(2.17);
-			  inbound_heat_flux_old=0.;
-			  inbound_heat_flux_new=0.;
 			}
 		      else
 			{
-			  // inbound_heat_flux_old=-1.*old_pipe_heat_flux[pipe_number]/2.59666;//(2.17);//(1.922);
-			  // // inbound_heat_flux_new=-1.*(0.5*previous_new_pipe_heat_flux[pipe_number]+
-			  // // 			     0.5*current__new_pipe_heat_flux[pipe_number])/(2.17);
-			  // inbound_heat_flux_new=-1.*current__new_pipe_heat_flux[pipe_number]/2.59666;//(2.17);
-			  inbound_heat_flux_old=0.;
-			  inbound_heat_flux_new=0.;
+			  pcout << "Error: author not implemented." << std::endl
+				<< "Error in assembling function."  << std::endl;
+			  throw 3;
+			}
+
+		      for (unsigned int i=0; i<dofs_per_cell; ++i)
+			{
+			  if ((face_boundary_indicator==boundary_id_road) ||
+			      (face_boundary_indicator==boundary_id_soil))
+			    for (unsigned int j=0; j<dofs_per_cell; ++j)
+			      {
+				cell_laplace_matrix_new (i,j)+=
+				  outbound_convective_coefficient_new*
+				  fe_face_values.shape_value(i,q_face_point)*
+				  fe_face_values.shape_value(j,q_face_point)*
+				  fe_face_values.JxW(q_face_point);
+				cell_laplace_matrix_old (i,j)+=
+				  outbound_convective_coefficient_old*
+				  fe_face_values.shape_value(i,q_face_point)*
+				  fe_face_values.shape_value(j,q_face_point)*
+				  fe_face_values.JxW(q_face_point);
+			      }
+			  cell_rhs(i)+=
+			    inbound_heat_flux_new*
+			    time_step*theta*
+			    fe_face_values.shape_value(i,q_face_point)*
+			    fe_face_values.JxW(q_face_point)
+			    +
+			    inbound_heat_flux_old*
+			    time_step*(1.-theta)*
+			    fe_face_values.shape_value(i,q_face_point)*
+			    fe_face_values.JxW(q_face_point);
 			}
 		    }
-		  else
-		    {
-		      pcout << "Error: author not implemented." << std::endl
-			    << "Error in assembling function."  << std::endl;
-		      throw 3;
-		    }
-		  
-		  fe_face_values.reinit(cell,face);
-		  for (unsigned int q_face_point=0; q_face_point<n_face_q_points; ++q_face_point)
-		    for (unsigned int i=0; i<dofs_per_cell; ++i)
-		      {
-			if ((face_boundary_indicator==boundary_id_road) ||
-			    (face_boundary_indicator==boundary_id_soil))
-			  for (unsigned int j=0; j<dofs_per_cell; ++j)
-			    {
-			      cell_laplace_matrix_new (i,j)+=
-			  	outbound_convective_coefficient_new*
-			  	fe_face_values.shape_value(i,q_face_point)*
-			  	fe_face_values.shape_value(j,q_face_point)*
-			  	fe_face_values.JxW(q_face_point);
-			      cell_laplace_matrix_old (i,j)+=
-			  	outbound_convective_coefficient_old*
-			  	fe_face_values.shape_value(i,q_face_point)*
-			  	fe_face_values.shape_value(j,q_face_point)*
-			  	fe_face_values.JxW(q_face_point);
-			    }
-			cell_rhs(i)+=
-			  inbound_heat_flux_new*
-			  time_step*theta*
-			  fe_face_values.shape_value(i,q_face_point)*
-			  fe_face_values.JxW(q_face_point)
-			  +
-			  inbound_heat_flux_old*
-			  time_step*(1.-theta)*
-			  fe_face_values.shape_value(i,q_face_point)*
-			  fe_face_values.JxW(q_face_point);
-		      }
 		}
 	    }
 	  cell->get_dof_indices (local_dof_indices);
@@ -1426,7 +1496,7 @@ namespace TRL
     //MaterialData material_data (dim,insulation,/*moisture content*/0.23,moisture_movement);
     std::vector<unsigned int> material_id_int;
     std::vector<double> thermal_conductivity_int;
-    //std::vector<double> volumetric_heat_capacity_int;
+    std::vector<double> volumetric_heat_capacity_int;
     //std::vector<double> density_int;
     //std::vector<double> thermal_diffusivity_int;
 
@@ -1451,23 +1521,23 @@ namespace TRL
 	// 			      cell->center());
 	
 	unsigned int material_id=cell->material_id();
-	PorousMaterial material(find_material_name(material_id),
-				find_material_porosity(material_id),
-				find_material_saturation(material_id));
-	//Material material(find_material_name(material_id));
+	//PorousMaterial material(find_material_name(material_id),
+	//			find_material_porosity(material_id),
+	//			find_material_saturation(material_id));
+	Material material(find_material_name(material_id));
 	material_id_int
 	  .push_back(material_id);
 	thermal_conductivity_int
 	  .push_back(material.thermal_conductivity());
-	// volumetric_heat_capacity_int
-	//   .push_back(material.volumetric_heat_capacity(theta*new_temperature+(1.-theta)*old_temperature));
-	// density_int
-	//   .push_back(material.density());
+	volumetric_heat_capacity_int
+	  .push_back(material.volumetric_heat_capacity(/*theta*new_temperature+(1.-theta)*old_temperature)*/0.));
+	//density_int
+	//  .push_back(material.density());
 	// thermal_diffusivity_int
 	//   .push_back(material.thermal_diffusivity());
 
-	if (cell_index_to_previous_new_surface_temperature.find(cell)!=
-	    cell_index_to_previous_new_surface_temperature.end())
+	if (cell_index_to_new_previous_surface_temperature.find(cell)!=
+	    cell_index_to_new_previous_surface_temperature.end())
 	  boundaries.push_back(cell->face(cell_index_to_face_index[cell])->boundary_id());
 	else
 	  boundaries.push_back(0);
@@ -1476,8 +1546,8 @@ namespace TRL
 						material_id_int.end());
     const Vector<double> thermal_conductivity  (thermal_conductivity_int.begin(),
 						thermal_conductivity_int.end());
-    // const Vector<double> volumetric_heat_capacity(volumetric_heat_capacity_int.begin(),
-    // 						volumetric_heat_capacity_int.end());
+    const Vector<double> volumetric_heat_capacity(volumetric_heat_capacity_int.begin(),
+						  volumetric_heat_capacity_int.end());
     // const Vector<double> density               (density_int.begin(),
     // 						density_int.end());
     // const Vector<double> thermal_diffusivity   (thermal_diffusivity_int.begin(),
@@ -1487,7 +1557,7 @@ namespace TRL
 
     data_out.add_data_vector (material_id           ,"material_id");
     data_out.add_data_vector (thermal_conductivity  ,"thermal_conductivity");
-    //data_out.add_data_vector (volumetric_heat_capacity,"volumetric_heat_capacity");
+    data_out.add_data_vector (volumetric_heat_capacity,"volumetric_heat_capacity");
     //data_out.add_data_vector (density               ,"density");
     //data_out.add_data_vector (thermal_diffusivity   ,"thermal_diffusivity");
     data_out.add_data_vector (boundary_id   ,"boundary_id");
@@ -1582,8 +1652,8 @@ namespace TRL
     //			  thermal_diffusivity_int
     //			  .push_back(material_data.get_soil_thermal_diffusivity(cell->material_id()));
     //
-    //			  if (cell_index_to_previous_new_surface_temperature.find(cell)!=
-    //					  cell_index_to_previous_new_surface_temperature.end())
+    //			  if (cell_index_to_new_previous_surface_temperature.find(cell)!=
+    //					  cell_index_to_new_previous_surface_temperature.end())
     //				  boundaries.push_back(cell->face(cell_index_to_face_index[cell])->boundary_id());
     //			  else
     //				  boundaries.push_back(0);
@@ -1709,26 +1779,17 @@ namespace TRL
      * store details about the mesh
      */    
     cell_index_to_face_index.clear();
-    cell_index_to_previous_new_surface_temperature.clear();
-    cell_index_to_current__new_surface_temperature.clear();
+    cell_index_to_new_previous_surface_temperature.clear();
+    cell_index_to_new_current__surface_temperature.clear();
     cell_index_to_old_surface_temperature.clear();
-    cell_index_to_old_outbound_coefficient.clear();
-    cell_index_to_new_outbound_coefficient.clear();
-    cell_index_to_old_inbound_flux.clear();
-    cell_index_to_new_inbound_flux.clear();
-    // cell_index_to_old_boundary_coefficient_and_fluxes_road.clear();
-    // cell_index_to_old_boundary_coefficient_and_fluxes_soil.clear();
-    // cell_index_to_new_boundary_coefficient_and_fluxes_road.clear();
-    // cell_index_to_new_boundary_coefficient_and_fluxes_soil.clear();
-    //	  cell_index_to_mpi_process.clear();
-    //	  cell_index_to_pipe_number.clear();
-
-    std::map<unsigned int,unsigned int> boundary_count;
+    cell_index_to_mpi_process.clear();
+    cell_index_to_pipe_number.clear();
+    boundary_count.clear();
+    
     for (unsigned int i=0; i<n_boundary_ids; i++)
       boundary_count[i]=0;
-    int number_of_local_cells = 0;
-
-    unsigned int mpi_index = 0;
+    int number_of_local_cells=0;
+    unsigned int mpi_index=0;
     typename DoFHandler<dim>::active_cell_iterator
       cell = dof_handler.begin_active(),
       endc = dof_handler.end();
@@ -1755,28 +1816,15 @@ namespace TRL
 		((pipe_system==true)&&((boundary_id==boundary_id_collector)||
 				       (boundary_id==boundary_id_storage))))
 	      {
-		cell_index_to_face_index[cell]=face;
-		cell_index_to_previous_new_surface_temperature[cell]=18.;
-		cell_index_to_current__new_surface_temperature[cell]=18.;
-		cell_index_to_old_surface_temperature[cell]=18.;
-
+		if (mpi_index>=n_mpi_processes)
+		  mpi_index=0;
+		cell_index_to_mpi_process[cell]=mpi_index;
+		mpi_index++;
 		
-		if ((boundary_id==boundary_id_road)||
-		    (boundary_id==boundary_id_soil))
-		  {
-		    cell_index_to_old_outbound_coefficient[cell]=0.;
-		    cell_index_to_new_outbound_coefficient[cell]=0.;
-		    cell_index_to_old_inbound_flux[cell]=0.;
-		    cell_index_to_new_inbound_flux[cell]=0.;
-
-		    for (unsigned int i=0; i<7; i++)
-		      {
-			cell_index_to_old_boundary_coefficient_and_fluxes_road[cell].push_back(0.);
-			cell_index_to_old_boundary_coefficient_and_fluxes_soil[cell].push_back(0.);
-			cell_index_to_new_boundary_coefficient_and_fluxes_road[cell].push_back(0.);
-			cell_index_to_new_boundary_coefficient_and_fluxes_soil[cell].push_back(0.);
-		      }
-		  }
+		cell_index_to_face_index[cell]=face;
+		cell_index_to_new_previous_surface_temperature[cell]=10.;
+		cell_index_to_new_current__surface_temperature[cell]=10.;
+		cell_index_to_old_surface_temperature[cell]=10.;
 		
 		if ((boundary_id==boundary_id_collector)||
 		    (boundary_id==boundary_id_storage))
@@ -1836,10 +1884,6 @@ namespace TRL
 			  }
 		      }
 		  }
-		if (mpi_index>=n_mpi_processes)
-		  mpi_index=0;
-		cell_index_to_mpi_process[cell]=mpi_index;
-		mpi_index++;
 	      }
 	  }
     pcout << "\tNumber of mpi processes: "
@@ -1869,8 +1913,8 @@ namespace TRL
     pcout << std::endl << std::endl;
 
     // for (typename std::map<typename DoFHandler<dim>::active_cell_iterator,unsigned int >::iterator
-    // 	   it=cell_index_to_pipe_number.begin();
-    // 	 it!=cell_index_to_pipe_number.end(); ++it)
+    // 	   it=cell_index_to_mpi_process.begin();
+    // 	 it!=cell_index_to_mpi_process.end(); ++it)
     //   pcout << it->first << "\t"
     // 	    << it->first->face(cell_index_to_face_index[it->first])->center() << "\t"
     // 	    << it->second << "\n";
@@ -1880,111 +1924,107 @@ namespace TRL
   template<int dim>
   void Heat_Pipe<dim>::surface_temperatures()
   {
-	  std::vector<double> local_new_surface_temperatures;
-	  {
-		  const QGauss<dim-1> face_quadrature_formula(3);
-		  const unsigned int  n_face_q_points=face_quadrature_formula.size ();
-		  std::vector<double> old_face_q_values(n_face_q_points);
-		  std::vector<double> new_face_q_values(n_face_q_points);
-		  FEFaceValues<dim>   fe_face_values(fe, face_quadrature_formula,
-				  update_values | update_gradients |
-				  update_quadrature_points | update_JxW_values);
-		  const Vector<double> localized_new_solution(solution);
-		  /*Calculate temperature*/
-		  for (typename std::map<typename DoFHandler<dim>::active_cell_iterator,unsigned int>::iterator
-				  it=cell_index_to_face_index.begin();
-				  it!=cell_index_to_face_index.end(); ++it)
-		  {
-			  double new_temperature=0.;
-			  if (cell_index_to_mpi_process[it->first]==this_mpi_process)
-			  {
-				  fe_face_values.reinit(it->first,it->second);
-				  fe_face_values.get_function_values(localized_new_solution,new_face_q_values);
-				  for (unsigned int q_face_point=0; q_face_point<n_face_q_points; q_face_point++)
-					  new_temperature+=new_face_q_values[q_face_point];/*fe_face_values.JxW(q_face_point);*/
-				  new_temperature/=n_face_q_points;
-			  }
-			  local_new_surface_temperatures.push_back(new_temperature);
-		  }
-	  }
-	  {
-		  unsigned int vector_index=0;
-		  cell_index_to_current__new_surface_temperature.clear();
-		  for (typename std::map<typename DoFHandler<dim>::active_cell_iterator,unsigned int>::iterator
-				  it=cell_index_to_face_index.begin();
-				  it!=cell_index_to_face_index.end(); ++it)
-		  {
-			  cell_index_to_current__new_surface_temperature[it->first]=
-					  Utilities::MPI::sum(local_new_surface_temperatures[vector_index],mpi_communicator);
-			  vector_index++;
-		  }
-	  }
-	  /*
-	   * Finally, calculate the average surface temperature
-	   * AND
-	   * Distribute temperatures around pipes
-	   */
-	  {
-		  for (unsigned int i=0; i<number_of_pipes; i++)
-		  {
-			  max_pipe_temperature[i]=-1.e6;
-			  new_avg_pipe_temperature[i]=0.;
-			  min_pipe_temperature[i]=1.e6;
-			  cell_faces_per_pipe[i]=0;
-		  }
-		  current_new_avg_soil_surface_temperature=0.;
-		  current_new_avg_road_surface_temperature=0.;
-		  unsigned int cells_on_soil_surface=0;
-		  unsigned int cells_on_road_surface=0;
-		  for (typename std::map<typename DoFHandler<dim>::active_cell_iterator,double >::iterator
-				  it=cell_index_to_current__new_surface_temperature.begin();
-				  it!=cell_index_to_current__new_surface_temperature.end(); ++it)
-		  {
-			  unsigned int face
-			  =cell_index_to_face_index[it->first];
-			  unsigned int boundary_id
-			  =it->first->face(face)->boundary_id();
+    std::vector<double> local_new_surface_temperatures;
+    {
+      const QGauss<dim-1> face_quadrature_formula(3);
+      const unsigned int  n_face_q_points=face_quadrature_formula.size();
+      std::vector<double> face_q_values(n_face_q_points);
+      FEFaceValues<dim>   fe_face_values(fe, face_quadrature_formula,
+					 update_values | update_gradients |
+					 update_quadrature_points | update_JxW_values);
+      const Vector<double> localized_solution(solution);
+      /*Calculate temperature*/
+      for (typename std::map<typename DoFHandler<dim>::active_cell_iterator,unsigned int>::iterator
+	     it=cell_index_to_face_index.begin();
+	   it!=cell_index_to_face_index.end(); ++it)
+	{
+	  double new_temperature=0.;
+	  if (cell_index_to_mpi_process[it->first]==this_mpi_process)
+	    {
+	      fe_face_values.reinit(it->first,it->second);
+	      fe_face_values.get_function_values(localized_solution,face_q_values);
+	      for (unsigned int q_face_point=0; q_face_point<n_face_q_points; q_face_point++)
+		new_temperature+=face_q_values[q_face_point];/*fe_face_values.JxW(q_face_point);*/
+	      new_temperature/=n_face_q_points;
+	    }
+	  local_new_surface_temperatures.push_back(new_temperature);
+	}
+    }
+    {
+      unsigned int vector_index=0;
+      cell_index_to_new_current__surface_temperature.clear();
+      for (typename std::map<typename DoFHandler<dim>::active_cell_iterator,unsigned int>::iterator
+	     it=cell_index_to_face_index.begin();
+	   it!=cell_index_to_face_index.end(); ++it)
+	{
+	  cell_index_to_new_current__surface_temperature[it->first]=
+	    Utilities::MPI::sum(local_new_surface_temperatures[vector_index],mpi_communicator);
+	  vector_index++;
+	}
+    }
+    /*
+     * Finally, calculate the average surface temperature
+     * AND
+     * Distribute temperatures around pipes
+     */
+    {
+      for (unsigned int i=0; i<number_of_pipes; i++)
+	{
+	  max_pipe_temperature[i]=-1.e6;
+	  new_avg_pipe_temperature[i]=0.;
+	  min_pipe_temperature[i]=1.e6;
+	  cell_faces_per_pipe[i]=0;
+	}
+      current_new_avg_soil_surface_temperature=0.;
+      current_new_avg_road_surface_temperature=0.;
+      for (typename std::map<typename DoFHandler<dim>::active_cell_iterator,double >::iterator
+	     it=cell_index_to_new_current__surface_temperature.begin();
+	   it!=cell_index_to_new_current__surface_temperature.end(); ++it)
+	{
+	  unsigned int face=
+	    cell_index_to_face_index[it->first];
+	  unsigned int boundary_id=
+	    it->first->face(face)->boundary_id();
 
-			  if (boundary_id==boundary_id_soil)
-			  {
-				  current_new_avg_soil_surface_temperature
-				  +=it->second;
-				  cells_on_soil_surface++;
-			  }
-			  if (boundary_id==boundary_id_road)
-			  {
-				  current_new_avg_road_surface_temperature
-				  +=it->second;
-				  cells_on_road_surface++;
-			  }
-			  if ((boundary_id==boundary_id_collector)||
-					  (boundary_id==boundary_id_storage))
-			  {
-				  unsigned int pipe_number=cell_index_to_pipe_number.find(it->first)->second; //0 to 39 in 2D
-				  if (it->second>max_pipe_temperature[pipe_number])
-					  max_pipe_temperature[pipe_number]
-										   =it->second;
-				  if (it->second<min_pipe_temperature[pipe_number])
-					  min_pipe_temperature[pipe_number]
-										   =it->second;
-				  new_avg_pipe_temperature[pipe_number]+=it->second;
-				  cell_faces_per_pipe[pipe_number]++;
-			  }
-		  }
-		  current_new_avg_soil_surface_temperature/=cells_on_soil_surface;
-		  current_new_avg_road_surface_temperature/=cells_on_road_surface;
-		  for (unsigned int i=0; i<number_of_pipes; i++)
-			  new_avg_pipe_temperature[i]
-									   /=cell_faces_per_pipe[i];
-	  }
-	  // for (typename std::map<typename DoFHandler<dim>::active_cell_iterator,double >::iterator
-	  // 	   it=cell_index_to_current__new_surface_temperature.begin();
-	  // 	 it!=cell_index_to_current__new_surface_temperature.end(); ++it)
-	  //   {
-	  // 	pcout<<it->second<<"\t"
-	  // 	     <<cell_index_to_previous_new_surface_temperature.find(it->first)->second<<"\t"
-	  // 	     <<cell_index_to_old_surface_temperature.find(it->first)->second<<"\n";
-	  //   }
+	  if (boundary_id==boundary_id_soil)
+	    {
+	      current_new_avg_soil_surface_temperature
+		+=it->second;
+	    }
+	  if (boundary_id==boundary_id_road)
+	    {
+	      current_new_avg_road_surface_temperature
+		+=it->second;
+	    }
+	  if ((boundary_id==boundary_id_collector)||
+	      (boundary_id==boundary_id_storage))
+	    {
+	      unsigned int pipe_number=cell_index_to_pipe_number.find(it->first)->second; //0 to 39 in 2D
+	      if (it->second>max_pipe_temperature[pipe_number])
+		max_pipe_temperature[pipe_number]
+		  =it->second;
+	      if (it->second<min_pipe_temperature[pipe_number])
+		min_pipe_temperature[pipe_number]
+		  =it->second;
+	      new_avg_pipe_temperature[pipe_number]+=it->second;
+	      cell_faces_per_pipe[pipe_number]++;
+	    }
+	}
+      current_new_avg_soil_surface_temperature/=boundary_count[boundary_id_soil];
+      current_new_avg_road_surface_temperature/=boundary_count[boundary_id_road];
+      for (unsigned int i=0; i<number_of_pipes; i++)
+	new_avg_pipe_temperature[i]/=cell_faces_per_pipe[i];
+    }
+    // for (typename std::map<typename DoFHandler<dim>::active_cell_iterator,double >::iterator
+    // 	   it=cell_index_to_new_current__surface_temperature.begin();
+    // 	 it!=cell_index_to_new_current__surface_temperature.end(); ++it)
+    //   {
+    // 	pcout<<it->second<<"\t"
+    // 	     <<cell_index_to_new_previous_surface_temperature.find(it->first)->second<<"\t"
+    // 	     <<cell_index_to_old_surface_temperature.find(it->first)->second<<"\n";
+    //   }
+    // pcout << current_new_avg_soil_surface_temperature << "\t"
+    // 	  << current_new_avg_road_surface_temperature << "\n";
   }
 
   template<int dim>
@@ -2092,27 +2132,28 @@ namespace TRL
   template<int dim>
   void Heat_Pipe<dim>::initial_condition()
   {
-	  if (preheating_step>1)
-	  {
-		  std::ifstream file (("./preheatings/"+preheating_input_filename).c_str());
-		  if (!file.is_open())
-			  throw 2;
+    if (preheating_step>1)
+      {
+	std::ifstream file (("./preheatings/"+preheating_input_filename).c_str());
+	if (!file.is_open())
+	  throw 2;
 
-		  Vector<double> initial_condition;
-		  initial_condition.block_read (file);
+	Vector<double> initial_condition;
+	initial_condition.block_read (file);
 
-		  file.close();
-		  if (file.is_open())
-			  throw 3;
-	  }
-	  else
-	  {
-		  VectorTools::project(dof_handler,
-				  constraints, QGauss<dim>(3),
-				  ConstantFunction<dim>(10.),
-				  old_solution);
-		  old_solution.compress (VectorOperation::insert);
-	  }
+	file.close();
+	if (file.is_open())
+	  throw 3;
+      }
+    else
+      {
+	VectorTools::project(dof_handler,
+			     constraints, QGauss<dim>(3),
+			     ConstantFunction<dim>(10.),
+			     old_solution);
+	old_solution.compress(VectorOperation::insert);
+	solution=old_solution;
+      }
   }
   
   template<int dim>
@@ -2145,6 +2186,7 @@ namespace TRL
       mesh_info();
       refine_grid();
       mesh_info();
+      //surface_temperatures();
     }
     /*
       It looks like the system was active whenever the temperature difference between
@@ -2179,464 +2221,476 @@ namespace TRL
      * initial time and many other variables are defined in the constructor
      */
     for (timestep_number=1, time=time_step;
-	 timestep_number<=timestep_number_max;
-	 timestep_number++, time+=time_step)
+    	 timestep_number<=timestep_number_max;
+    	 timestep_number++, time+=time_step)
       {
-	/*
-	 * Update meteorological data
-	 */
-	{
-	  TimerOutput::Scope timer_section (timer,"Update met data");
-	  update_met_data ();
-	}
-	/*
-	 * Prepare vectors with data at borehole's
-	 * sensor depths. We do this every time step.
-	 */
-	//		  {
-	//			  TimerOutput::Scope timer_section (timer,"Fill output vectors");
-	//			  fill_output_vectors();
-	//		  }
-	/*
-	 * In the experimental data provided by TRL, in the sensor located nearest to the
-	 * surface, it can be observed a change in the daily variations of temperature for
-	 * the months of December to March. It is believe that this effect is produced by
-	 * different canopy densities above the soil's surface.
-	 */
-	canopy_density=parameters.canopy_density;
-	if (author=="Best")
-	  if (date_and_time[timestep_number][1]>=10 &&
-	      date_and_time[timestep_number][1]<=2)
-	    canopy_density=parameters.canopy_density;
-	/*
-	 * Here we define and initialise variables for convergence
-	 * criteria. First, those corresponding to the surface
-	 * temperature convergence. We also need a variable to
-	 * tell us how many times have the loop been performed
-	 * in each time step.
-	 */
-	current__new_collector_avg_norm=0.;
-	current__new_storage___avg_norm=0.;
+    	/*
+    	 * Update meteorological data
+    	 */
+    	{
+    	  TimerOutput::Scope timer_section (timer,"Update met data");
+    	  update_met_data ();
+    	}
+    	/*
+    	 * Prepare vectors with data at borehole's
+    	 * sensor depths. We do this every time step.
+    	 */
+    	//		  {
+    	//			  TimerOutput::Scope timer_section (timer,"Fill output vectors");
+    	//			  fill_output_vectors();
+    	//		  }
+    	/*
+    	 * In the experimental data provided by TRL, in the sensor located nearest to the
+    	 * surface, it can be observed a change in the daily variations of temperature for
+    	 * the months of December to March. It is believe that this effect is produced by
+    	 * different canopy densities above the soil's surface.
+    	 */
+    	canopy_density=parameters.canopy_density;
+    	if (author=="Best")
+    	  if (date_and_time[timestep_number][1]>=10 &&
+    	      date_and_time[timestep_number][1]<=2)
+    	    canopy_density=parameters.canopy_density;
+    	/*
+    	 * Here we define and initialise variables for convergence
+    	 * criteria. First, those corresponding to the surface
+    	 * temperature convergence. We also need a variable to
+    	 * tell us how many times have the loop been performed
+    	 * in each time step.
+    	 */
+    	current__new_collector_avg_norm=0.;
+    	current__new_storage___avg_norm=0.;
 
-	double tolerance_collector_avg_norm=-1000.;
-	double tolerance_storage___avg_norm=-1000.;
-	double tolerance_soil_avg_surface_temperature=-1000.;
-	double tolerance_road_avg_surface_temperature=-1000.;
-	double tolerance_limit_soil=0.0001;//%
-	double tolerance_limit_road=0.0001;//%
-	double tolerance_limit_collector=0.0001;//%
-	double tolerance_limit_storage__=0.0001;//%
-	// if (date_and_time[timestep_number][1]==6)
-	//   tolerance_limit_soil=0.8;
-	/*
-	 * Then those corresponding to the pipe system convergence. We too
-	 * compare the heat flux at the collector and storage pipes in the
-	 * following way: average the collector heat flux for all pipes and
-	 * compare the new and old values. When the difference between these
-	 * values is less than 10 Watts, break the loop.
-	 * We also need vectors that define the current state of the pipe
-	 * system. We will work with these temporal vectors and we will
-	 * update the originals once the solution converges. These vectors
-	 * are meant to store just the current state of the system, not the
-	 * state through the whole simulation.
-	 * Here we also need a variable to tell us how many times has this
-	 * loop been performed.
-	 */
-	/*
-	 * We want to store the soil and road heat and mass fluxes at each
-	 * time step. This is done in a vectors of vectors, a kind of matrix.
-	 * Every line corresponds to a time step. As we don't know a priori
-	 * how many time steps are going to be performed, we add a new line
-	 * every time we enter a new time step. The line is rewritten
-	 * every time the system is assembled and when the system converges
-	 * it will store the final heat fluxes for that time step.
-	 */
-	for (unsigned int i=0; i<number_of_pipes; i++)
-	  current__new_pipe_heat_flux[i]=0.;
+    	double tolerance_collector_avg_norm=-1000.;
+    	double tolerance_storage___avg_norm=-1000.;
+    	double tolerance_soil_avg_surface_temperature=-1000.;
+    	double tolerance_road_avg_surface_temperature=-1000.;
+    	double tolerance_limit_soil=0.002;//%
+    	double tolerance_limit_road=0.001;//%
+    	double tolerance_limit_collector=0.001;//%
+    	double tolerance_limit_storage__=0.001;//%
+    	// if (date_and_time[timestep_number][1]==6)
+    	//   tolerance_limit_soil=0.8;
+    	/*
+    	 * Then those corresponding to the pipe system convergence. We too
+    	 * compare the heat flux at the collector and storage pipes in the
+    	 * following way: average the collector heat flux for all pipes and
+    	 * compare the new and old values. When the difference between these
+    	 * values is less than 10 Watts, break the loop.
+    	 * We also need vectors that define the current state of the pipe
+    	 * system. We will work with these temporal vectors and we will
+    	 * update the originals once the solution converges. These vectors
+    	 * are meant to store just the current state of the system, not the
+    	 * state through the whole simulation.
+    	 * Here we also need a variable to tell us how many times has this
+    	 * loop been performed.
+    	 */
+    	/*
+    	 * We want to store the soil and road heat and mass fluxes at each
+    	 * time step. This is done in a vectors of vectors, a kind of matrix.
+    	 * Every line corresponds to a time step. As we don't know a priori
+    	 * how many time steps are going to be performed, we add a new line
+    	 * every time we enter a new time step. The line is rewritten
+    	 * every time the system is assembled and when the system converges
+    	 * it will store the final heat fluxes for that time step.
+    	 */
+    	for (unsigned int i=0; i<number_of_pipes; i++)
+    	  current__new_pipe_heat_flux[i]=0.;
 
-	unsigned int step=0;
-	do
-	  {
-	    /*
-	     * surface temperature convergence
-	     */
-	    for (unsigned int i=0; i<road_heat_fluxes[timestep_number-1].size(); i++)
-	      road_heat_fluxes[timestep_number-1][i]=0.;
-	    for (unsigned int i=0; i<soil_heat_fluxes[timestep_number-1].size(); i++)
-	      soil_heat_fluxes[timestep_number-1][i]=0.;
-	    {
-	      TimerOutput::Scope timer_section (timer,"Assemble temperature");
-	      assemble_system_parallel(switch_control,step);
-	      assemble_system_petsc();
-	    }
-	    {
-	      TimerOutput::Scope timer_section (timer,"Solve temperature");
-	      solve();
-	    }
-	    double avg_collector__inlets=0.;
-	    double avg_collector_outlets=0.;
-	    double avg_storage____inlets=0.;
-	    double avg_storage___outlets=0.;
-	    {
-	      TimerOutput::Scope timer_section (timer,"Update surface temperatures");
-	      previous_new_avg_soil_surface_temperature
-		=current_new_avg_soil_surface_temperature;
-	      previous_new_avg_road_surface_temperature
-		=current_new_avg_road_surface_temperature;
+    	unsigned int step=0;
+    	do
+    	  {
+    	    /*
+    	     * surface temperature convergence
+    	     */
+    	    for (unsigned int i=0; i<road_heat_fluxes[timestep_number-1].size(); i++)
+    	      road_heat_fluxes[timestep_number-1][i]=0.;
+    	    for (unsigned int i=0; i<soil_heat_fluxes[timestep_number-1].size(); i++)
+    	      soil_heat_fluxes[timestep_number-1][i]=0.;
+    	    {
+    	      TimerOutput::Scope timer_section (timer,"Assemble temperature");
+    	      assemble_system_parallel(switch_control,
+				       step);
+    	      assemble_system_petsc();
+    	    }
+    	    {
+    	      TimerOutput::Scope timer_section (timer,"Solve temperature");
+    	      solve();
+    	    }
+    	    double avg_collector__inlets=0.;
+    	    double avg_collector_outlets=0.;
+    	    double avg_storage____inlets=0.;
+    	    double avg_storage___outlets=0.;
+    	    {
+    	      TimerOutput::Scope timer_section (timer,"Update surface temperatures");
+    	      previous_new_avg_soil_surface_temperature
+    		=current_new_avg_soil_surface_temperature;
+    	      previous_new_avg_road_surface_temperature
+    		=current_new_avg_road_surface_temperature;
 
-	      previous_new_collector_avg_norm
-		=current__new_collector_avg_norm;
-	      previous_new_storage___avg_norm
-		=current__new_storage___avg_norm;
+    	      previous_new_collector_avg_norm
+    		=current__new_collector_avg_norm;
+    	      previous_new_storage___avg_norm
+    		=current__new_storage___avg_norm;
 
-	      surface_temperatures();
+    	      surface_temperatures();
 
-	      current__new_collector_avg_norm=0.;
-	      current__new_storage___avg_norm=0.;
+    	      current__new_collector_avg_norm=0.;
+    	      current__new_storage___avg_norm=0.;
 
-	      for (unsigned int i=0; i<number_of_pipes/2; i++)
-		{
-		  current__new_collector_avg_norm
-		    +=new_avg_pipe_temperature[i]/(number_of_pipes/2);
+    	      for (unsigned int i=0; i<number_of_pipes/2; i++)
+    		{
+    		  current__new_collector_avg_norm
+    		    +=new_avg_pipe_temperature[i]/(number_of_pipes/2);
 
-		  current__new_storage___avg_norm
-		    +=new_avg_pipe_temperature[(number_of_pipes/2)+i]/(number_of_pipes/2);
+    		  current__new_storage___avg_norm
+    		    +=new_avg_pipe_temperature[(number_of_pipes/2)+i]/(number_of_pipes/2);
 
-		  if (i<number_of_pipes/4)
-		    {
-		      avg_collector__inlets
-			+=max_pipe_temperature[i]/(number_of_pipes/4);
-		      avg_storage____inlets
-			+=max_pipe_temperature[(number_of_pipes/2)+i]/(number_of_pipes/4);
-		      avg_collector_outlets
-			+=max_pipe_temperature[(number_of_pipes/4)+i]/(number_of_pipes/4);
-		      avg_storage___outlets
-			+=max_pipe_temperature[(number_of_pipes/4)+(number_of_pipes/2)+i]/(number_of_pipes/4);
-		    }
-		}
-	      /*
-	       * Define tolerances
-	       */
-	      tolerance_soil_avg_surface_temperature
-		=fabs(1.-current_new_avg_soil_surface_temperature/previous_new_avg_soil_surface_temperature);
-	      tolerance_road_avg_surface_temperature
-		=fabs(1.-current_new_avg_road_surface_temperature/previous_new_avg_road_surface_temperature);
-	      tolerance_collector_avg_norm
-		=fabs(1.-current__new_collector_avg_norm/previous_new_collector_avg_norm);
-	      tolerance_storage___avg_norm
-		=fabs(1.-current__new_storage___avg_norm/previous_new_storage___avg_norm);
-	    }
-	    //==========================================================================================
-	    /*-----solve pipe system ------*/
-	    if (step==0)
-	      {
-		if (preheating_step==4 ||
-		    preheating_step==7)
-		  {
-		    new_control_temperature_collector
-		      =current__new_collector_avg_norm;
-		    new_control_temperature___storage
-		      =current__new_storage___avg_norm;
-		  }
-		else if (preheating_step==5 ||
-			 preheating_step==8)
-		  {
-		    const Vector<double> localized_solution_temperature(old_solution);
+    		  if (i<number_of_pipes/4)
+    		    {
+    		      avg_collector__inlets
+    			+=max_pipe_temperature[i]/(number_of_pipes/4);
+    		      avg_storage____inlets
+    			+=max_pipe_temperature[(number_of_pipes/2)+i]/(number_of_pipes/4);
+    		      avg_collector_outlets
+    			+=max_pipe_temperature[(number_of_pipes/4)+i]/(number_of_pipes/4);
+    		      avg_storage___outlets
+    			+=max_pipe_temperature[(number_of_pipes/4)+(number_of_pipes/2)+i]/(number_of_pipes/4);
+    		    }
+    		}
+    	      /*
+    	       * Define tolerances
+    	       */
+    	      tolerance_soil_avg_surface_temperature
+    		=fabs(1.-current_new_avg_soil_surface_temperature/previous_new_avg_soil_surface_temperature);
+    	      tolerance_road_avg_surface_temperature
+    		=fabs(1.-current_new_avg_road_surface_temperature/previous_new_avg_road_surface_temperature);
+    	      tolerance_collector_avg_norm
+    		=fabs(1.-current__new_collector_avg_norm/previous_new_collector_avg_norm);
+    	      tolerance_storage___avg_norm
+    		=fabs(1.-current__new_storage___avg_norm/previous_new_storage___avg_norm);
+    	    }
+    	    //==========================================================================================
+    	    /*-----solve pipe system ------*/
+    	    if (step==0)
+    	      {
+    		if (preheating_step==4 ||
+    		    preheating_step==7)
+    		  {
+    		    new_control_temperature_collector
+    		      =current__new_collector_avg_norm;
+    		    new_control_temperature___storage
+    		      =current__new_storage___avg_norm;
+    		  }
+    		else if (preheating_step==5 ||
+    			 preheating_step==8)
+    		  {
+    		    const Vector<double> localized_solution_temperature(old_solution);
 
-		    new_control_temperature_collector
-		      =VectorTools::point_value(dof_handler,
-						localized_solution_temperature,
-						Point<dim>(0.,-0.025));
-		    new_control_temperature___storage
-		      =current__new_storage___avg_norm;
-		  }
-		control_temperatures[timestep_number-1][0]=
-		  new_control_temperature_collector;
-		control_temperatures[timestep_number-1][1]=
-		  new_control_temperature___storage;
-		/*
-		 * Here is implemented the activation of the system. There are two main ways:
-		 *
-		 * --1-- The system is activated automatically if a certain criteria is meet.
-		 * At the moment this criteria is the temperature difference between the
-		 * average temperature at the surface of collector and storage pipes. Two
-		 * main periods of time are identified in the experimental results:
-		 * from 23/08/2005 to 14/11/2005 and from 15/11/2005 to 20/02/2006
-		 * --2-- The system is forced to be active in certain ranges of time (i.e.
-		 * between noon and 10pm everyday).
-		 */
-		if (activation_type=="automatic_activation")
-		  {
-		    // first period: from 23/08/2005 to 14/11/2005
-		    if (preheating_step==4 ||
-			preheating_step==7)
-		      {
-			if (((new_control_temperature_collector-new_control_temperature___storage)>1.4) || //1.4
-			    (switch_control &&
-			     ((new_control_temperature_collector-new_control_temperature___storage)>0.4))) //0.4
-			  switch_control=true;
-			else
-			  switch_control=false;
-			/*
-			 * If there is any interval where the system is off or on for any
-			 * external reason (e.g. failure) modify the followig IF statement.
-			 */
-			if ((preheating_step==4)&&
-			    (date_and_time[timestep_number][0]==23 &&
-			     date_and_time[timestep_number][1]==8  &&
-			     date_and_time[timestep_number][2]==2005 &&
-			     (date_and_time[timestep_number][3]<13 ||
-			      (date_and_time[timestep_number][3]==13 &&
-			       date_and_time[timestep_number][4]<0))))
-			  switch_control=false;
-			else if ((preheating_step==7)&&
-				 ((date_and_time[timestep_number][1]==5  &&
-				   date_and_time[timestep_number][2]==2006 &&
-				   date_and_time[timestep_number][0]>=18)||
-				  (date_and_time[timestep_number][1]==6  &&
-				   date_and_time[timestep_number][2]==2006 &&
-				   date_and_time[timestep_number][0]<5)))
-			  switch_control=false;
-		      }
-		    else if (preheating_step==5 ||// second period: from 15/11/2005 to 20/02/2006
-			     preheating_step==8)
-		      {
-			double control_temperature=4.;
-			if ((old_control_temperature_collector<control_temperature)&&
-			    (new_control_temperature_collector<control_temperature))
-			  switch_control=true;
-			else if (switch_control &&
-				 (old_control_temperature_collector>control_temperature)&&
-				 (new_control_temperature_collector>control_temperature))
-			  switch_control=false;
-			else
-			  switch_control=false;
+    		    new_control_temperature_collector
+    		      =VectorTools::point_value(dof_handler,
+    						localized_solution_temperature,
+    						Point<dim>(0.,-0.025));
+    		    new_control_temperature___storage
+    		      =current__new_storage___avg_norm;
+    		  }
+    		control_temperatures[timestep_number-1][0]=
+    		  new_control_temperature_collector;
+    		control_temperatures[timestep_number-1][1]=
+    		  new_control_temperature___storage;
+    		/*
+    		 * Here is implemented the activation of the system. There are two main ways:
+    		 *
+    		 * --1-- The system is activated automatically if a certain criteria is meet.
+    		 * At the moment this criteria is the temperature difference between the
+    		 * average temperature at the surface of collector and storage pipes. Two
+    		 * main periods of time are identified in the experimental results:
+    		 * from 23/08/2005 to 14/11/2005 and from 15/11/2005 to 20/02/2006
+    		 * --2-- The system is forced to be active in certain ranges of time (i.e.
+    		 * between noon and 10pm everyday).
+    		 */
+    		if (activation_type=="automatic_activation")
+    		  {
+    		    // first period: from 23/08/2005 to 14/11/2005
+    		    if (preheating_step==4 ||
+    			preheating_step==7)
+    		      {
+    			if (((new_control_temperature_collector-new_control_temperature___storage)>1.4) || //1.4
+    			    (switch_control &&
+    			     ((new_control_temperature_collector-new_control_temperature___storage)>0.4))) //0.4
+    			  switch_control=true;
+    			else
+    			  switch_control=false;
+    			/*
+    			 * If there is any interval where the system is off or on for any
+    			 * external reason (e.g. failure) modify the followig IF statement.
+    			 */
+    			if ((preheating_step==4)&&
+    			    (date_and_time[timestep_number][0]==23 &&
+    			     date_and_time[timestep_number][1]==8  &&
+    			     date_and_time[timestep_number][2]==2005 &&
+    			     (date_and_time[timestep_number][3]<13 ||
+    			      (date_and_time[timestep_number][3]==13 &&
+    			       date_and_time[timestep_number][4]<0))))
+    			  switch_control=false;
+    			else if ((preheating_step==7)&&
+    				 ((date_and_time[timestep_number][1]==5  &&
+    				   date_and_time[timestep_number][2]==2006 &&
+    				   date_and_time[timestep_number][0]>=18)||
+    				  (date_and_time[timestep_number][1]==6  &&
+    				   date_and_time[timestep_number][2]==2006 &&
+    				   date_and_time[timestep_number][0]<5)))
+    			  switch_control=false;
+    		      }
+    		    else if (preheating_step==5 ||// second period: from 15/11/2005 to 20/02/2006
+    			     preheating_step==8)
+    		      {
+    			double control_temperature=4.;
+    			if ((old_control_temperature_collector<control_temperature)&&
+    			    (new_control_temperature_collector<control_temperature))
+    			  switch_control=true;
+    			else if (switch_control &&
+    				 (old_control_temperature_collector>control_temperature)&&
+    				 (new_control_temperature_collector>control_temperature))
+    			  switch_control=false;
+    			else
+    			  switch_control=false;
 
-			if (new_control_temperature___storage<
-			    new_control_temperature_collector)
-			  switch_control=false;
-		      }
-		    else
-		      switch_control=false;
-		  }
-		else if (activation_type=="forced_activation")
-		  {
-		    if ((date_and_time[timestep_number][3]>=14) &&
-			(date_and_time[timestep_number][3]<=20) &&
-			(date_and_time[timestep_number][1]<10))
-		      switch_control=true;
-		    else
-		      switch_control=false;
-		  }
-		else
-		  {
-		    pcout << "Error. Wrong activation type\n";
-		    throw -1;
-		  }
-	      }
+    			if (new_control_temperature___storage<
+    			    new_control_temperature_collector)
+    			  switch_control=false;
+    		      }
+    		    else
+    		      switch_control=false;
+    		  }
+    		else if (activation_type=="forced_activation")
+    		  {
+    		    if ((date_and_time[timestep_number][3]>=14) &&
+    			(date_and_time[timestep_number][3]<=20) &&
+    			(date_and_time[timestep_number][1]<10))
+    		      switch_control=true;
+    		    else
+    		      switch_control=false;
+    		  }
+    		else
+    		  {
+    		    pcout << "Error. Wrong activation type\n";
+    		    throw -1;
+    		  }
+    	      }
 
-	    if ((pipe_system==true)&&
-		(switch_control==true))
-	      {
-		if ((previous_switch_control==false)&&
-		    (switch_control==true)&&
-		    (step==0))
-		  {
-		    for (unsigned int i=0; i<number_of_pipes/2; i++)
-		      {
-			current__new_inlet__temperatures_pipes[   i]=
-			  new_avg_pipe_temperature[20+i];
-			current__new_inlet__temperatures_pipes[20+i]=
-			  new_avg_pipe_temperature[   i];
+    	    if ((pipe_system==true)&&
+    		(switch_control==true))
+    	      {
+    		if ((previous_switch_control==false)&&
+    		    (switch_control==true)&&
+    		    (step==0))
+    		  {
+    		    for (unsigned int i=0; i<number_of_pipes/2; i++)
+    		      {
+    			current__new_inlet__temperatures_pipes[   i]=
+    			  new_avg_pipe_temperature[20+i];
+    			current__new_inlet__temperatures_pipes[20+i]=
+    			  new_avg_pipe_temperature[   i];
 
-			old_pipe_heat_flux[   i]=0.;
-			old_pipe_heat_flux[20+i]=0.;
-		      }
-		  }
-		else
-		  current__new_inlet__temperatures_pipes
-		    =previous_new_inlet__temperatures_pipes;
+    			old_pipe_heat_flux[   i]=0.;
+    			old_pipe_heat_flux[20+i]=0.;
+    		      }
+    		  }
+    		else
+    		  current__new_inlet__temperatures_pipes
+    		    =previous_new_inlet__temperatures_pipes;
 
-		std::vector<double> current_heat_flux_temp(number_of_pipes,0);
-		PipeSystem system_pipes(time_step);
+    		std::vector<double> current_heat_flux_temp(number_of_pipes,0);
+    		PipeSystem system_pipes(time_step);
 
-		system_pipes.pipe_heat_flux(new_avg_pipe_temperature,
-					    old_avg_pipe_temperature,
-					    current__new_inlet__temperatures_pipes,
-					    current__new_outlet_temperatures_pipes,
-					    current_heat_flux_temp);
-		for (unsigned int i=0; i<number_of_pipes; i++)
-		  current__new_pipe_heat_flux[i]+=
-		    current_heat_flux_temp[i];
+    		system_pipes.pipe_heat_flux(new_avg_pipe_temperature,
+    					    old_avg_pipe_temperature,
+    					    current__new_inlet__temperatures_pipes,
+    					    current__new_outlet_temperatures_pipes,
+    					    current_heat_flux_temp);
+    		for (unsigned int i=0; i<number_of_pipes; i++)
+    		  current__new_pipe_heat_flux[i]+=
+    		    current_heat_flux_temp[i];
 
-		previous_new_inlet__temperatures_pipes
-		  =current__new_inlet__temperatures_pipes;
-	      }
-	    step++;
+    		previous_new_inlet__temperatures_pipes
+    		  =current__new_inlet__temperatures_pipes;
+    	      }
+    	    step++;
 	    
-	    if (step>100 && step<120)
-	      {
-		pcout << "\t" << tolerance_soil_avg_surface_temperature << " -- "
-		      << tolerance_limit_soil << "\n"
-		      << "\t" << tolerance_road_avg_surface_temperature << " -- "
-		      << tolerance_limit_road << "\n";
-	      }
+    	    if (step>0 && step<120)
+    	      {
+		std::cout.setf( std::ios::fixed, std::ios::floatfield );
+    		pcout << "\tsoil: "
+		      << std::setw(5) << std::setfill(' ') << std::setprecision(4)
+		      << tolerance_soil_avg_surface_temperature << "\t"
+    		      << tolerance_limit_soil << "\t"
+		      << current_new_avg_soil_surface_temperature << "\t"
+		      << previous_new_avg_soil_surface_temperature << "\n"
+    		      << "\troad: "
+		      << std::setw(5) << std::setfill(' ')
+		      << tolerance_road_avg_surface_temperature << "\t"
+    		      << tolerance_limit_road << "\t"
+		      << current_new_avg_road_surface_temperature << "\t"
+		      << previous_new_avg_road_surface_temperature << "\n\n";
+    	      }
 	    
-	    cell_index_to_previous_new_surface_temperature
-	      =cell_index_to_current__new_surface_temperature;
-	  }while ((tolerance_soil_avg_surface_temperature>tolerance_limit_soil) ||
-		  (tolerance_road_avg_surface_temperature>tolerance_limit_road) ||
-		  ((pipe_system==true)&&(switch_control==true)&&
-		   ((tolerance_collector_avg_norm>tolerance_limit_collector)||
-		    (tolerance_storage___avg_norm>tolerance_limit_storage__))));
+    	    cell_index_to_new_previous_surface_temperature
+    	      =cell_index_to_new_current__surface_temperature;
+    	  }while ((tolerance_soil_avg_surface_temperature>tolerance_limit_soil) ||
+    		  (tolerance_road_avg_surface_temperature>tolerance_limit_road) ||
+    		  ((pipe_system==true)&&(switch_control==true)&&
+    		   ((tolerance_collector_avg_norm>tolerance_limit_collector)||
+    		    (tolerance_storage___avg_norm>tolerance_limit_storage__))));
 	
-	pcout << "Time step " << timestep_number << "\t"
-	      << std::setw(2) << std::setfill('0') << date_and_time[timestep_number][0] << "/"
-	      << std::setw(2) << std::setfill('0') << date_and_time[timestep_number][1] << "/"
-	      << std::setw(2) << std::setfill('0') << date_and_time[timestep_number][2] << "\t"
-	      << std::setw(2) << std::setfill('0') << date_and_time[timestep_number][3] << ":"
-	      << std::setw(2) << std::setfill('0') << date_and_time[timestep_number][4] << ":"
-	      << std::setw(2) << std::setfill('0') << date_and_time[timestep_number][5];
-	std::cout.setf( std::ios::fixed, std::ios::floatfield );
-	pcout << "\tTa:" << std::setw(5) << std::setfill(' ') << std::setprecision(2) << new_air_temperature
-	      << "\tRs:" << std::setw(7) << std::setfill(' ') << std::setprecision(2) << new_solar_radiation
-	      << "\tUs:" << std::setw(5) << std::setfill(' ') << std::setprecision(2) << new_wind_speed
-	      << "\tHr:" << std::setw(6) << std::setfill(' ') << std::setprecision(2) << new_relative_humidity
-	      << "\tI :" << std::setw(5) << std::setfill(' ') << std::setprecision(2) << new_precipitation
-	      << "\tc :" << std::setw(4) << std::setfill(' ') << std::setprecision(2) << canopy_density
-	      << "\ts :" << std::setw(3) << std::setfill(' ') << std::setprecision(2) << step
-	      << std::endl;
-	{
-	  /*
-	   * Output the solution at the beggining, end and every
-	   * certain time stepsy:
-	   */
-	  if (parameters.output_vtu_files)
-	    {
-	      TimerOutput::Scope timer_section (timer,"Output results");
-	      output_results();
-	    }
-	  /*
-	   * At the end of the simulation we output the previous
-	   * defined vectors and visualization files
-	   */
-	  if (timestep_number==timestep_number_max)
-	    {
-	      TimerOutput::Scope timer_section (timer,"Output text files");
-	      const Vector<double> localized_solution_temperature (solution);
-	      if (this_mpi_process==0)
-		{
-		  std::vector< std::vector<int> >::const_iterator
-		    first=date_and_time.begin(), second=date_and_time.begin()+timestep_number_max;
-		  std::vector< std::vector<int> > date_and_time_1d(first,second);
-		  /*
-		   * Print file with data at borehole
-		   * sensor's depths generate suffix
-		   */
-		  {
-		    std::stringstream p;
-		    p << output_path << "/" << preheating_output_filename;
-		    std::string prefix = p.str();
+    	pcout << "Time step " << timestep_number << "\t"
+    	      << std::setw(2) << std::setfill('0') << date_and_time[timestep_number][0] << "/"
+    	      << std::setw(2) << std::setfill('0') << date_and_time[timestep_number][1] << "/"
+    	      << std::setw(2) << std::setfill('0') << date_and_time[timestep_number][2] << "\t"
+    	      << std::setw(2) << std::setfill('0') << date_and_time[timestep_number][3] << ":"
+    	      << std::setw(2) << std::setfill('0') << date_and_time[timestep_number][4] << ":"
+    	      << std::setw(2) << std::setfill('0') << date_and_time[timestep_number][5];
+    	std::cout.setf( std::ios::fixed, std::ios::floatfield );
+    	pcout << "\tTa:" << std::setw(5) << std::setfill(' ') << std::setprecision(2) << new_air_temperature
+    	      << "\tRs:" << std::setw(7) << std::setfill(' ') << std::setprecision(2) << new_solar_radiation
+    	      << "\tUs:" << std::setw(5) << std::setfill(' ') << std::setprecision(2) << new_wind_speed
+    	      << "\tHr:" << std::setw(6) << std::setfill(' ') << std::setprecision(2) << new_relative_humidity
+    	      << "\tI :" << std::setw(5) << std::setfill(' ') << std::setprecision(2) << new_precipitation
+    	      << "\tc :" << std::setw(4) << std::setfill(' ') << std::setprecision(2) << canopy_density
+    	      << "\ts :" << std::setw(3) << std::setfill(' ') << std::setprecision(2) << step
+    	      << std::endl;
+    	{
+    	  /*
+    	   * Output the solution at the beggining, end and every
+    	   * certain time stepsy:
+    	   */
+    	  if (parameters.output_vtu_files)
+    	    {
+    	      TimerOutput::Scope timer_section (timer,"Output results");
+    	      output_results();
+    	    }
+    	  /*
+    	   * At the end of the simulation we output the previous
+    	   * defined vectors and visualization files
+    	   */
+    	  if (timestep_number==timestep_number_max)
+    	    {
+    	      TimerOutput::Scope timer_section (timer,"Output text files");
+    	      const Vector<double> localized_solution_temperature (solution);
+    	      if (this_mpi_process==0)
+    		{
+    		  std::vector< std::vector<int> >::const_iterator
+    		    first=date_and_time.begin(), second=date_and_time.begin()+timestep_number_max;
+    		  std::vector< std::vector<int> > date_and_time_1d(first,second);
+    		  /*
+    		   * Print file with data at borehole
+    		   * sensor's depths generate suffix
+    		   */
+    		  {
+    		    std::stringstream p;
+    		    p << output_path << "/" << preheating_output_filename;
+    		    std::string prefix = p.str();
 
-		    std::vector< std::string > filenames;
-		    // filenames.push_back(prefix+"_bha_temperature.txt");
-		    // filenames.push_back(prefix+"_bhf_temperature.txt");
-		    // filenames.push_back(prefix+"_bhh_temperature.txt");
-		    // filenames.push_back(prefix+"_bhi_temperature.txt");
-		    // filenames.push_back(prefix+"_road_heat_fluxes.txt");
-		    // filenames.push_back(prefix+"_soil_heat_fluxes.txt");
+    		    std::vector< std::string > filenames;
+    		    // filenames.push_back(prefix+"_bha_temperature.txt");
+    		    // filenames.push_back(prefix+"_bhf_temperature.txt");
+    		    // filenames.push_back(prefix+"_bhh_temperature.txt");
+    		    // filenames.push_back(prefix+"_bhi_temperature.txt");
+    		    filenames.push_back(prefix+"_road_heat_fluxes.txt");
+    		    filenames.push_back(prefix+"_soil_heat_fluxes.txt");
 
-		    if (pipe_system==true)
-		      {
-			filenames.push_back(prefix+"_pipe_heat_fluxes.txt");
-			filenames.push_back(prefix+"_control_temperatures.txt");
-		      }
-		    std::vector< std::vector< std::vector<double> > > data;
-		    //						  data.push_back(soil_bha_temperature);
-		    //						  data.push_back(soil_bhf_temperature);
-		    //						  data.push_back(soil_bhh_temperature);
-		    //						  data.push_back(soil_bhi_temperature);
-		    data.push_back(road_heat_fluxes);
-		    data.push_back(soil_heat_fluxes);
-		    if (pipe_system==true)
-		      {
-			data.push_back(pipe_heat_fluxes);
-			data.push_back(control_temperatures);
-		      }
+    		    if (pipe_system==true)
+    		      {
+    			filenames.push_back(prefix+"_pipe_heat_fluxes.txt");
+    			filenames.push_back(prefix+"_control_temperatures.txt");
+    		      }
+    		    std::vector< std::vector< std::vector<double> > > data;
+    		    // data.push_back(soil_bha_temperature);
+    		    // data.push_back(soil_bhf_temperature);
+    		    // data.push_back(soil_bhh_temperature);
+    		    // data.push_back(soil_bhi_temperature);
+    		    data.push_back(road_heat_fluxes);
+    		    data.push_back(soil_heat_fluxes);
+    		    if (pipe_system==true)
+    		      {
+    			data.push_back(pipe_heat_fluxes);
+    			data.push_back(control_temperatures);
+    		      }
 
-		    for (unsigned int f=0; f<filenames.size(); f++)
-		      {
-			std::ofstream file (filenames[f].c_str());
-			if (!file.is_open())
-			  throw 2;
-			pcout << "Writing file: " << filenames[f].c_str() << std::endl;
-			DataTools data_tools;
-			data_tools.print_data(file,
-					      data[f],
-					      date_and_time_1d);
-			file.close();
-			if (file.is_open())
-			  throw 3;
-		      }
-		  }
-		  /*
-		   * Print preheating files
-		   */
-		  {
-		    std::string temp=output_path+"/"+preheating_output_filename;
-		    std::ofstream file_temperature(temp.c_str());
-		    if (!file_temperature.is_open())
-		      throw 2;
-		    localized_solution_temperature.block_write(file_temperature);
-		    file_temperature.close();
-		    if (file_temperature.is_open())
-		      throw 3;
-		  }
-		}
-	    }
-	}
-	/*
-	 * update old solution to the current solution
-	 * update everything that need to be updated
-	 */
-	control_temperatures.resize(control_temperatures.size()+1,std::vector<double>(2));
-	road_heat_fluxes.resize(road_heat_fluxes.size()+1,std::vector<double>(number_of_surface_heat_and_mass_fluxes));
-	soil_heat_fluxes.resize(soil_heat_fluxes.size()+1,std::vector<double>(number_of_surface_heat_and_mass_fluxes));
-	{
-	  old_solution=solution;
+    		    for (unsigned int f=0; f<filenames.size(); f++)
+    		      {
+    			std::ofstream file (filenames[f].c_str());
+    			if (!file.is_open())
+    			  throw 2;
+    			pcout << "Writing file: " << filenames[f].c_str() << std::endl;
+    			DataTools data_tools;
+    			data_tools.print_data(file,
+    					      data[f],
+    					      date_and_time_1d);
+    			file.close();
+    			if (file.is_open())
+    			  throw 3;
+    		      }
+    		  }
+    		  /*
+    		   * Print preheating files
+    		   */
+    		  {
+    		    std::string temp=output_path+"/"+preheating_output_filename;
+    		    std::ofstream file_temperature(temp.c_str());
+    		    if (!file_temperature.is_open())
+    		      throw 2;
+    		    localized_solution_temperature.block_write(file_temperature);
+    		    file_temperature.close();
+    		    if (file_temperature.is_open())
+    		      throw 3;
+    		  }
+    		}
+    	    }
+    	}
+    	/*
+    	 * update old solution to the current solution
+    	 * update everything that need to be updated
+    	 */
+    	control_temperatures.resize(control_temperatures.size()+1,std::vector<double>(2));
+    	road_heat_fluxes
+	  .resize(road_heat_fluxes.size()+1,std::vector<double>(number_of_surface_heat_and_mass_fluxes));
+    	soil_heat_fluxes
+	  .resize(soil_heat_fluxes.size()+1,std::vector<double>(number_of_surface_heat_and_mass_fluxes));
+    	{
+    	  old_solution=solution;
 
-	  cell_index_to_old_surface_temperature
-	    =cell_index_to_current__new_surface_temperature;
-	  old_avg_soil_surface_temperature
-	    =current_new_avg_soil_surface_temperature;
-	  old_avg_road_surface_temperature
-	    =current_new_avg_road_surface_temperature;
+    	  cell_index_to_old_surface_temperature
+    	    =cell_index_to_new_current__surface_temperature;
+    	  old_avg_soil_surface_temperature
+    	    =current_new_avg_soil_surface_temperature;
+    	  old_avg_road_surface_temperature
+    	    =current_new_avg_road_surface_temperature;
 
-	  old_avg_pipe_temperature
-	    =new_avg_pipe_temperature;
-	  old_inlet__temperatures_pipes
-	    =current__new_inlet__temperatures_pipes;
-	  old_outlet_temperatures_pipes
-	    =current__new_outlet_temperatures_pipes;
+    	  old_avg_pipe_temperature
+    	    =new_avg_pipe_temperature;
+    	  old_inlet__temperatures_pipes
+    	    =current__new_inlet__temperatures_pipes;
+    	  old_outlet_temperatures_pipes
+    	    =current__new_outlet_temperatures_pipes;
 
-	  old_pipe_heat_flux
-	    =current__new_pipe_heat_flux;
+    	  old_pipe_heat_flux
+    	    =current__new_pipe_heat_flux;
 
-	  previous_switch_control=switch_control;
-	  old_control_temperature_collector
-	    =new_control_temperature_collector;
+    	  previous_switch_control=switch_control;
+    	  old_control_temperature_collector
+    	    =new_control_temperature_collector;
 
-	  cell_index_to_old_outbound_coefficient
-	    =cell_index_to_new_outbound_coefficient;
+    	  // cell_index_to_old_outbound_coefficient
+    	  //   =cell_index_to_new_outbound_coefficient;
 
-	  cell_index_to_old_inbound_flux
-	    =cell_index_to_new_inbound_flux;
+    	  // cell_index_to_old_inbound_flux
+    	  //   =cell_index_to_new_inbound_flux;
 
-	  cell_index_to_old_boundary_coefficient_and_fluxes_road
-	    =cell_index_to_new_boundary_coefficient_and_fluxes_road;;
-	  cell_index_to_old_boundary_coefficient_and_fluxes_soil
-	    =cell_index_to_new_boundary_coefficient_and_fluxes_soil;
-	}
+    	  // cell_index_to_old_boundary_coefficient_and_fluxes_road
+    	  //   =cell_index_to_new_boundary_coefficient_and_fluxes_road;;
+    	  // cell_index_to_old_boundary_coefficient_and_fluxes_soil
+    	  //   =cell_index_to_new_boundary_coefficient_and_fluxes_soil;
+    	}
       }
     /*
      * Nothing better than a job well done (hopefully)

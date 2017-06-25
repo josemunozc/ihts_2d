@@ -17,6 +17,7 @@ subsection options
 	set weather type       = emd-trl #
 	set thermal conductivity factor = 1.0 #
 	set input path       = /home/zerpiko/input #
+#	set output path      = ./output #
 	set mesh filename    = trl_mesh_in_2d.msh #
 	set mesh dirname     = meshes #
 	set activation type  = automatic_activation #
