@@ -541,7 +541,7 @@ namespace TRL
     if (preheating_step==1 && time_step==3600)
       {
 	time_step=3600;
-	timestep_number_max=240;//4300;//70079; // 8 years
+	timestep_number_max=4300;//70079; // 8 years
 	initial_date.reserve(6);
 	initial_date.push_back(1);
 	initial_date.push_back(9);
@@ -2311,10 +2311,6 @@ namespace TRL
     	      assemble_system_parallel(switch_control,
 				       step);
     	      assemble_system_petsc();
-
-	      for (unsigned int i=0; i<soil_heat_fluxes[timestep_number-1].size(); i++)
-		pcout << "\t" << soil_heat_fluxes[timestep_number-1][i];
-	      pcout << "\n";
     	    }
     	    {
     	      TimerOutput::Scope timer_section (timer,"Solve temperature");
