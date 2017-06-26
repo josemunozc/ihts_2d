@@ -156,8 +156,8 @@ namespace TRL
 				author,
 				canopy_density,
 				surface_temperature,
-				surface_temperature,
-				true);
+				met_data[0],//surface_temperature,
+				false);
     inbound_total_flux=boundary_condition
       .get_inbound_heat_flux(surface_type,
 			     author,
@@ -165,8 +165,8 @@ namespace TRL
 			     canopy_temperature,
 			     canopy_density,
 			     surface_temperature,
-			     surface_temperature,
-			     true);
+			     met_data[0],//surface_temperature,
+			     false);
     boundary_condition
       .print_inbound_heat_fluxes(inbound_flux_solar,
 				 inbound_flux_convective,
@@ -541,7 +541,7 @@ namespace TRL
     if (preheating_step==1 && time_step==3600)
       {
 	time_step=3600;
-	timestep_number_max=24;//4300;//70079; // 8 years
+	timestep_number_max=240;//4300;//70079; // 8 years
 	initial_date.reserve(6);
 	initial_date.push_back(1);
 	initial_date.push_back(9);
@@ -2264,7 +2264,7 @@ namespace TRL
     	double tolerance_storage___avg_norm=-1000.;
     	double tolerance_soil_avg_surface_temperature=-1000.;
     	double tolerance_road_avg_surface_temperature=-1000.;
-    	double tolerance_limit_soil=0.002;//%
+    	double tolerance_limit_soil=0.001;//%
     	double tolerance_limit_road=0.001;//%
     	double tolerance_limit_collector=0.001;//%
     	double tolerance_limit_storage__=0.001;//%
@@ -2311,6 +2311,10 @@ namespace TRL
     	      assemble_system_parallel(switch_control,
 				       step);
     	      assemble_system_petsc();
+
+	      for (unsigned int i=0; i<soil_heat_fluxes[timestep_number-1].size(); i++)
+		pcout << "\t" << soil_heat_fluxes[timestep_number-1][i];
+	      pcout << "\n";
     	    }
     	    {
     	      TimerOutput::Scope timer_section (timer,"Solve temperature");
