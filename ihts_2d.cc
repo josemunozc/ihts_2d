@@ -125,6 +125,18 @@ namespace TRL
     shading_factor(shading_factor_),
     surface_type(surface_type_)
   {
+    /*
+     * If 'analytic == true' then the remaining variables passed to the object of
+     * class type 'BoundaryConditions' are irrelevant because they are redefined
+     * when its flux members are called according to the 'time' provided.
+     *
+     * Some of the heat transfer coefficients (infrared coefficients in particular)
+     * depend on an estimation of the previous surface temperature. At the beggining
+     * i thought it would be ok to just ask the point_value at each cell. The problem
+     * is that this operation is highly costly (as it needs to iterate and interpolate
+     * in the solution vector) and the cost is directly proportional to the number of
+     * cells (making it unsuitable for 3D). So, a new strategy is needed.
+     */
     boundary_condition = BoundaryConditions(false/*analytic*/,
 					    0./* time_step*timestep_number*/,
 					    met_data[0]/*air_temperature*/,
@@ -135,7 +147,8 @@ namespace TRL
 					    surface_temperature,
 					    0./*,new_surface_pressure*/,
 					    false/*moisture_movement*/);
-    if (surface_type.compare("road")==0)
+    if (surface_type.compare("road")==0 ||
+	surface_type.compare("snow")==0)
       author="Herb";
     else if (surface_type.compare("soil")==0)
       author="Best";
@@ -282,7 +295,7 @@ namespace TRL
     std::string activation_type;
     double canopy_density;
     const bool moisture_movement;
-    //
+    
     std::string author;
     std::string preheating_output_filename;
     std::string preheating_input_filename;
@@ -291,14 +304,12 @@ namespace TRL
     std::string mesh_path;
     bool fixed_bc_at_bottom;
     bool pipe_system;
-    //bool shading;
     bool insulation;
     bool analytic_met_data;
     int  preheating_step;
     double shading_factor_value;
     double thermal_conductivity_factor;
     int type_of_weather;
-
     const unsigned int number_of_pipes;//=40;
     /*----------------------mesh data vectors--------------------*/
     std::map<typename DoFHandler<dim>::active_cell_iterator,unsigned int >
@@ -309,54 +320,35 @@ namespace TRL
     cell_index_to_old_surface_temperature,
       cell_index_to_new_current__surface_temperature,
       cell_index_to_new_previous_surface_temperature;
-      // cell_index_to_old_outbound_coefficient,
-      // cell_index_to_new_outbound_coefficient,
-      // cell_index_to_old_inbound_flux,
-      // cell_index_to_new_inbound_flux;
-
-    // std::map<typename DoFHandler<dim>::active_cell_iterator,std::vector<double> >
-    // cell_index_to_old_boundary_coefficient_and_fluxes_road,
-    //   cell_index_to_old_boundary_coefficient_and_fluxes_soil,
-    //   cell_index_to_new_boundary_coefficient_and_fluxes_road,
-    //   cell_index_to_new_boundary_coefficient_and_fluxes_soil;
     /*
      * boundary id - material name - porosity - saturation
      */
-    //    std::map<unsigned int,std::tuple<std::string,double,double> > material_data;
-    //std::map<unsigned int, std::string> map_material_id_to_material_name
     std::map<unsigned int,std::pair<std::string,std::vector<double> > >map_material_id_to_material_name;
     std::map<unsigned int,unsigned int> boundary_count;
     /*-------------met data vectors and variables----------------*/
-      std::vector< std::vector<int> >    date_and_time;
+    std::vector< std::vector<int> > date_and_time;
     std::vector< std::vector<double> > met_data;
     std::vector<int> initial_date;
-    double new_air_temperature,old_air_temperature;
-    double new_relative_humidity,old_relative_humidity;
-    double new_wind_speed,old_wind_speed;
-    double new_wind_direction,old_wind_direction;
-    double new_solar_radiation,old_solar_radiation;
-    double new_precipitation,old_precipitation;
-
+    
     const unsigned int n_boundary_ids;//=8;
     const unsigned int boundary_id_collector;//=1;
     const unsigned int boundary_id_storage;//=2;
     const unsigned int boundary_id_road;//=3;
     const unsigned int boundary_id_soil;//=4;
     const unsigned int boundary_id_soil_bottom;//=5;
-
-    //    /*--------------pipe system vectors and variables--------------*/
+    /*--------------pipe system vectors and variables--------------*/
     std::vector<double> max_pipe_temperature;
     std::vector<double> new_avg_pipe_temperature;
     std::vector<double> min_pipe_temperature;
     std::vector<int> cell_faces_per_pipe;
     std::vector<double> old_avg_pipe_temperature;
-    //
+    
     std::vector<double> old_pipe_heat_flux;
     std::vector<double> current__new_pipe_heat_flux;
-    //
+    
     double old_avg_soil_surface_temperature;
     double old_avg_road_surface_temperature;
-    //
+    
     double previous_new_avg_soil_surface_temperature;
     double previous_new_avg_road_surface_temperature;
     double previous_new_max_soil_surface_temperature;
@@ -376,16 +368,14 @@ namespace TRL
     Point<dim> borehole_F_depths[35];
     Point<dim> borehole_H_depths[35];
     Point<dim> borehole_I_depths[35];
-    //
-    //    std::vector< std::vector<int> > date_and_time_1d;
-    //
+    
     std::vector< std::vector<double> > soil_bha_temperature;
     std::vector< std::vector<double> > soil_bhf_temperature;
     std::vector< std::vector<double> > soil_bhh_temperature;
     std::vector< std::vector<double> > soil_bhi_temperature;
     std::vector< std::vector<double> > pipe_heat_fluxes;
     std::vector< std::vector<double> > control_temperatures;
-    //
+    
     std::vector< std::vector<double> > road_heat_fluxes;
     std::vector< std::vector<double> > soil_heat_fluxes;
     
@@ -393,8 +383,6 @@ namespace TRL
     static std::string weather_options[6];
 
     Parameters::AllParameters<dim>  parameters;
-
-    //std::map<unsigned int,std::string> boundary_id_map;
   };
   /*
    * amd: analytical meteorological data
@@ -541,7 +529,7 @@ namespace TRL
     if (preheating_step==1 && time_step==3600)
       {
 	time_step=3600;
-	timestep_number_max=4300;//70079; // 8 years
+	timestep_number_max=4320;//70079; // 8 years
 	initial_date.reserve(6);
 	initial_date.push_back(1);
 	initial_date.push_back(9);
@@ -726,20 +714,6 @@ namespace TRL
 	borehole_I_depths[i][0]=  5.0;
 	borehole_I_depths[i][1]= -1.*borehole_depths[i];
       }
-
-    new_air_temperature=0.;
-    old_air_temperature=0.;
-    new_relative_humidity=0.;
-    old_relative_humidity=0.;
-    new_wind_speed=0.;
-    old_wind_speed=0.;
-    new_wind_direction=0.;
-    old_wind_direction=0.;
-    new_solar_radiation=0.;
-    old_solar_radiation=0.;
-    new_precipitation=0.;
-    old_precipitation=0.;
-
     old_avg_soil_surface_temperature=10.;
     old_avg_road_surface_temperature=10.;
 
@@ -973,7 +947,8 @@ namespace TRL
 	std::map<unsigned int,double> boundary_values;
 	VectorTools::interpolate_boundary_values (dof_handler,
 						  boundary_id_road,
-						  ConstantFunction<dim>(new_air_temperature),
+						  ConstantFunction<dim>(met_data[timestep_number][0]
+									/*new_air_temperature*/),
 						  boundary_values);
 	MatrixTools::apply_boundary_values (boundary_values,
 					    system_matrix,
@@ -983,7 +958,8 @@ namespace TRL
 	boundary_values.clear();
 	VectorTools::interpolate_boundary_values (dof_handler,
 						  boundary_id_soil,
-						  ConstantFunction<dim>(new_air_temperature),
+						  ConstantFunction<dim>(met_data[timestep_number][0]
+									/*new_air_temperature*/),
 						  boundary_values);
 	MatrixTools::apply_boundary_values (boundary_values,
 					    system_matrix,
@@ -1119,14 +1095,6 @@ namespace TRL
 		  fe_face_values.reinit(cell,face);
 		  fe_face_values.get_function_values(localized_old_solution,old_function_values_face);
 		  fe_face_values.get_function_values(localized_new_solution,new_function_values_face);
-		  // double old_surface_temperature=0;
-		  // double new_surface_temperature=0;
-		  //for (unsigned int q_face_point=0; q_point<n_q_points; ++q_point)
-		  // for (unsigned int q_face_point=0; q_face_point<n_face_q_points; ++q_face_point)
-		  //   {
-		  //     old_surface_temperature+=old_function_values_face[q_face_point]/n_face_q_points;
-		  //     new_surface_temperature+=new_function_values_face[q_face_point]/n_face_q_points;
-		  //   }
 		  for (unsigned int q_face_point=0; q_face_point<n_face_q_points; ++q_face_point)
 		    {		      
 		      double outbound_convective_coefficient_new=0.;
@@ -1135,7 +1103,6 @@ namespace TRL
 		      double inbound_heat_flux_old=0.;
 		      /*
 		       * Variables for heat flux from surface. The convective coefficients below
-		       *
 		       * include both convective and infrared interactions since they can be
 		       * represented in a similar way (after the radiative coefficients have
 		       * been linearized).
@@ -1143,30 +1110,17 @@ namespace TRL
 		      if ((face_boundary_indicator==boundary_id_road) ||
 			  (face_boundary_indicator==boundary_id_soil))
 			{
-			  /*
-			   * If 'analytic == true' then the remaining variables passed to the object of
-			   * class type 'BoundaryConditions' are irrelevant because they are redefined
-			   * when its flux members are called according to the 'time' provided.
-			   *
-			   * Some of the heat transfer coefficients (infrared coefficients in particular)
-			   * depend on an estimation of the previous surface temperature. At the beggining
-			   * i thought it would be ok to just ask the point_value at each cell. The problem
-			   * is that this operation is highly costly (as it needs to iterate and interpolate
-			   * in the solution vector) and the cost is directly proportional to the number of
-			   * cells (making it unsuitable for 3D). So, a new strategy is needed.
-			   */
 			  double old_surface_temperature=old_avg_soil_surface_temperature;
-			  //double old_surface_temperature=old_function_values_face[q_face_point];
-			  // =VectorTools::point_value(dof_handler,
-			  // 			  localized_old_solution,
-			  // 			  cell->face(face)->center());
 			  double new_surface_temperature=previous_new_avg_soil_surface_temperature;
-
 			  if (face_boundary_indicator==boundary_id_road)
 			    {
 			      old_surface_temperature=old_avg_road_surface_temperature;
 			      new_surface_temperature=previous_new_avg_road_surface_temperature;
 			    }
+			  //double old_surface_temperature=old_function_values_face[q_face_point];
+			  // =VectorTools::point_value(dof_handler,
+			  // 			  localized_old_solution,
+			  // 			  cell->face(face)->center());
 			    
 			  //double new_surface_temperature=new_function_values_face[q_face_point];
 			  // if (timestep_number==1 && iteration==0)
@@ -1188,23 +1142,53 @@ namespace TRL
 			      if (shading_factor_value>0 &&
 			          ((face_boundary_indicator==boundary_id_road) &&
 			           (((date_and_time[timestep_number][3]>=12) &&
-			      	 (date_and_time[timestep_number][3]<=16)) ||
-			      	((date_and_time[timestep_number][3]==17) &&
-			      	 (date_and_time[timestep_number][4]==00)))))
+				     (date_and_time[timestep_number][3]<=16)) ||
+				    ((date_and_time[timestep_number][3]==17) &&
+				     (date_and_time[timestep_number][4]==00)))))
 			        override_shading_factor=shading_factor_value;
 			      
 			      std::string local_surface_type="soil";
-			      if ((dim==2 || dim==3) &&
-			          (face_boundary_indicator==boundary_id_road))
+			      if ((dim==2 || dim==3) && (face_boundary_indicator==boundary_id_road))
 			        {
 			          local_surface_type="road";
 			        }
+			      /*
+			       * Select if there is a snow cover on top of the soil. At the moment
+			       * the dates are HARDCODED based on trl report. Ideally we should be
+			       * able to predict the presence of snow formation based on weather
+			       * data (air temperature, humidity, etc) and surface temperature.
+			       */
+			      bool snow_cover=false;
+			      // if (date_and_time[timestep_number][1]==12 &&//December
+			      // 	  ((date_and_time[timestep_number][0]==19 &&
+			      // 	    date_and_time[timestep_number][3]>=17 ) ||
+			      // 	   (date_and_time[timestep_number][0]==20 ) ||
+			      // 	   (date_and_time[timestep_number][0]==21 &&
+			      // 	    date_and_time[timestep_number][3]<=12 ))
+			      // 	  ||
+			      // 	  date_and_time[timestep_number][1]== 1 &&//January
+			      // 	  ((date_and_time[timestep_number][0]==23 &&
+			      // 	    date_and_time[timestep_number][3]>=18 ) ||
+			      // 	   (date_and_time[timestep_number][0]==24 ) ||
+			      // 	   (date_and_time[timestep_number][0]==25 &&
+			      // 	    date_and_time[timestep_number][3]<=13 ))
+			      // 	  ||
+			      // 	  date_and_time[timestep_number][1]== 2 &&//February
+			      // 	  ((date_and_time[timestep_number][0]== 7 &&
+			      // 	    date_and_time[timestep_number][3]>=18 ) ||
+			      // 	   (date_and_time[timestep_number][0]== 8 ) ||
+			      // 	   (date_and_time[timestep_number][0]== 9 &&
+			      // 	    date_and_time[timestep_number][3]<=13 )))
+			      // 	{
+			      // 	  snow_cover=true;
+			      // 	  local_surface_type="snow";
+			      // 	}
 			      //-----------HEAT FLUXES AND COEFFICIENTS---------//
-			      // double tav_surface_temperature
-			      //   =0.5*old_surface_temperature+
-			      //   0.5*new_surface_temperature;
+			      double tav_surface_temperature=
+				0.5*old_surface_temperature+
+				0.5*new_surface_temperature;
 			      BoundaryFlux old_boundary_flux(met_data[timestep_number-1],
-							     0.5*old_surface_temperature+0.5*new_surface_temperature,
+							     tav_surface_temperature,
 							     canopy_density,
 							     override_shading_factor,
 							     local_surface_type);
@@ -1212,10 +1196,9 @@ namespace TRL
 			        old_boundary_flux.outbound_heat_coefficient();
 			      inbound_heat_flux_old=
 			        old_boundary_flux.inbound_heat_flux();
-			  
-
+			      
 			      BoundaryFlux new_boundary_flux(met_data[timestep_number],
-							     0.5*old_surface_temperature+0.5*new_surface_temperature,
+							     tav_surface_temperature,
 							     canopy_density,
 							     override_shading_factor,
 							     local_surface_type);
@@ -1223,17 +1206,57 @@ namespace TRL
 			        new_boundary_flux.outbound_heat_coefficient();
 			      inbound_heat_flux_new=
 			        new_boundary_flux.inbound_heat_flux();
-			  
-			      // outbound_convective_coefficient_old=
-			      // 	10;
-			      // inbound_heat_flux_old=
-			      // 	100*cos(M_PI*(timestep_number-1)/12.);
-			  
-			      // outbound_convective_coefficient_new=
-			      // 	10;
-			      // inbound_heat_flux_new=
-			      // 	100*cos(M_PI*(timestep_number)/12.);
-			  
+			      /*
+			       * Estimate snow surface temperature. This is done assuming a second kind
+			       * boundary condition. The BoundaryFlux above is used to estimate the heat
+			       * transfer between the air and the snow cover. The temperature at the 
+			       * surface of the snow layer is calculated as:
+			       *
+			       * Ts = (inbound_heat_flux + 
+			       * (snow_thermal_conductivity/snow_thickness)*tav_surface_temperature)
+			       * /(outbound_convective_coefficient+(snow_thermal_conductivity/snow_thickness))
+			       *
+			       * IF Ts > 0 then Ts=0 (because we are not considering melting at all)
+			       *
+			       * and the heat flow applied at the soil surface is estimated as:
+			       * q=-(snow_thermal_conductivity/snow_thickness)
+			       *    *(Ts - tav_surface_temperature)
+			       *
+			       * The equations used to estimate the heat transfer between the atmosphere
+			       * and the snow surface are based on Herb, no canopy cover.
+			       * Also no evaporation is considered in the snow cover
+			       */
+			      if (snow_cover==true)
+				{
+				  double snow_thermal_conductivity=0.15;//[W/mK]
+				  double snow_thickness=0.1; //[m]
+				  double snow_temperature_new=
+				    (inbound_heat_flux_new+
+				     (snow_thermal_conductivity/snow_thickness)*new_surface_temperature)
+				    /(outbound_convective_coefficient_new+snow_thermal_conductivity/snow_thickness);
+				  if (snow_temperature_new>0.)
+				    snow_temperature_new=0.;
+				  double snow_temperature_old=
+				    (inbound_heat_flux_old+
+				     (snow_thermal_conductivity/snow_thickness)*old_surface_temperature)
+				    /(outbound_convective_coefficient_old+snow_thermal_conductivity/snow_thickness);
+				  if (snow_temperature_old>0.)
+				    snow_temperature_old=0.;
+				  
+				  double snow_heat_flux_new=
+				    (snow_thermal_conductivity/snow_thickness)*
+				    (snow_temperature_new-new_surface_temperature);
+				  double snow_heat_flux_old=
+				    (snow_thermal_conductivity/snow_thickness)*
+				    (snow_temperature_old-old_surface_temperature);
+
+				  inbound_heat_flux_old=snow_heat_flux_old;
+				  inbound_heat_flux_new=snow_heat_flux_new;
+				  outbound_convective_coefficient_old=0.;
+				  outbound_convective_coefficient_new=0.;
+				}
+			      
+			      
 			      double cell_face_diameter=cell->face(face)->diameter();
 			      if (q_face_point==0)
 				{
@@ -1335,27 +1358,6 @@ namespace TRL
 				      throw 1;
 				    }
 				}
-			      /*
-			       * Estimate snow surface temperature
-			       */
-			      // {
-			      //   double snow_thermal_conductivity=1.;//[W/mK]
-			      //   double snow_thickness=0.1; //[m]
-			      //   double snow_temperature_new=
-			      //     (inbound_heat_flux_new+
-			      //      (snow_thermal_conductivity/snow_thickness)*new_surface_temperature)
-			      //    /(outbound_convective_coefficient_new+snow_thermal_conductivity/snow_thickness);
-			      //   double snow_temperature_old=
-			      //     (inbound_heat_flux_old+
-			      //      (snow_thermal_conductivity/snow_thickness)*old_surface_temperature)
-			      //    /(outbound_convective_coefficient_old+snow_thermal_conductivity/snow_thickness);
-			      //   double snow_heat_flux_new=
-			      //     -(snow_thermal_conductivity/snow_thickness)*
-			      //     (snow_temperature_new-new_surface_temperature);
-			      //   double snow_heat_flux_old=
-			      //     -(snow_thermal_conductivity/snow_thickness)*
-			      //     (snow_temperature_old-old_surface_temperature);
-			      // }
 			    }
 			}
 		      // collector and storage pipes in 2D
@@ -2114,19 +2116,6 @@ namespace TRL
 	pcout << "\tAvailable met lines: " << met_data.size()
 	      << std::endl << std::endl;
       }
-    old_air_temperature   = met_data[timestep_number-1][0];
-    old_relative_humidity = met_data[timestep_number-1][1];
-    old_wind_speed        = met_data[timestep_number-1][2];
-    old_wind_direction    = met_data[timestep_number-1][3];
-    old_solar_radiation   = met_data[timestep_number-1][4];
-    old_precipitation     = met_data[timestep_number-1][5];
-    //
-    new_air_temperature   = met_data[timestep_number][0];
-    new_relative_humidity = met_data[timestep_number][1];
-    new_wind_speed        = met_data[timestep_number][2];
-    new_wind_direction    = met_data[timestep_number][3];
-    new_solar_radiation   = met_data[timestep_number][4];
-    new_precipitation     = met_data[timestep_number][5];
   }
   
   template<int dim>
@@ -2235,10 +2224,10 @@ namespace TRL
     	 * Prepare vectors with data at borehole's
     	 * sensor depths. We do this every time step.
     	 */
-    	//		  {
-    	//			  TimerOutput::Scope timer_section (timer,"Fill output vectors");
-    	//			  fill_output_vectors();
-    	//		  }
+	// {
+	//   TimerOutput::Scope timer_section (timer,"Fill output vectors");
+	//   fill_output_vectors();
+	// }
     	/*
     	 * In the experimental data provided by TRL, in the sensor located nearest to the
     	 * surface, it can be observed a change in the daily variations of temperature for
@@ -2259,17 +2248,23 @@ namespace TRL
     	 */
     	current__new_collector_avg_norm=0.;
     	current__new_storage___avg_norm=0.;
+	
 
-    	double tolerance_collector_avg_norm=-1000.;
-    	double tolerance_storage___avg_norm=-1000.;
-    	double tolerance_soil_avg_surface_temperature=-1000.;
-    	double tolerance_road_avg_surface_temperature=-1000.;
-    	double tolerance_limit_soil=0.001;//%
-    	double tolerance_limit_road=0.001;//%
+    	double relative_error_soil_avg_surface_temperature=-1000.;
+    	double relative_error_road_avg_surface_temperature=-1000.;
+	double absolute_error_soil_avg_surface_temperature=-1000.;
+    	double absolute_error_road_avg_surface_temperature=-1000.;
+    	double relative_tolerance_limit_soil=0.1;//%
+    	double relative_tolerance_limit_road=0.1;//%
+	double absolute_tolerance_limit_soil=0.01;//%
+    	double absolute_tolerance_limit_road=0.01;//%
+	
+	double tolerance_collector_avg_norm=-1000.;
+	double tolerance_storage___avg_norm=-1000.;
     	double tolerance_limit_collector=0.001;//%
     	double tolerance_limit_storage__=0.001;//%
     	// if (date_and_time[timestep_number][1]==6)
-    	//   tolerance_limit_soil=0.8;
+    	//   relative_tolerance_limit_soil=0.8;
     	/*
     	 * Then those corresponding to the pipe system convergence. We too
     	 * compare the heat flux at the collector and storage pipes in the
@@ -2358,12 +2353,18 @@ namespace TRL
     		    }
     		}
     	      /*
-    	       * Define tolerances
+    	       * Estimate errors
     	       */
-    	      tolerance_soil_avg_surface_temperature
-    		=fabs(1.-current_new_avg_soil_surface_temperature/previous_new_avg_soil_surface_temperature);
-    	      tolerance_road_avg_surface_temperature
-    		=fabs(1.-current_new_avg_road_surface_temperature/previous_new_avg_road_surface_temperature);
+    	      relative_error_soil_avg_surface_temperature=
+    		100.*fabs(1.-current_new_avg_soil_surface_temperature/previous_new_avg_soil_surface_temperature);
+    	      relative_error_road_avg_surface_temperature=
+    		100.*fabs(1.-current_new_avg_road_surface_temperature/previous_new_avg_road_surface_temperature);
+
+	      absolute_error_soil_avg_surface_temperature=
+		fabs(current_new_avg_soil_surface_temperature-previous_new_avg_soil_surface_temperature);
+    	      absolute_error_road_avg_surface_temperature=
+    		fabs(current_new_avg_road_surface_temperature-previous_new_avg_road_surface_temperature);
+	      
     	      tolerance_collector_avg_norm
     		=fabs(1.-current__new_collector_avg_norm/previous_new_collector_avg_norm);
     	      tolerance_storage___avg_norm
@@ -2477,7 +2478,7 @@ namespace TRL
     		    throw -1;
     		  }
     	      }
-
+	    
     	    if ((pipe_system==true)&&
     		(switch_control==true))
     	      {
@@ -2515,29 +2516,37 @@ namespace TRL
     		previous_new_inlet__temperatures_pipes
     		  =current__new_inlet__temperatures_pipes;
     	      }
-    	    step++;
-	    
-    	    if (step>0 && step<120)
+	    /*
+	     * print information and exit if there are too many iterations
+	     */
+	    step++;
+    	    if (step>0 && step<150)
     	      {
 		std::cout.setf( std::ios::fixed, std::ios::floatfield );
     		pcout << "\tsoil: "
 		      << std::setw(5) << std::setfill(' ') << std::setprecision(4)
-		      << tolerance_soil_avg_surface_temperature << "\t"
-    		      << tolerance_limit_soil << "\t"
+		      << relative_error_soil_avg_surface_temperature << "\t"
+    		      << relative_tolerance_limit_soil << "\t"
 		      << current_new_avg_soil_surface_temperature << "\t"
 		      << previous_new_avg_soil_surface_temperature << "\n"
     		      << "\troad: "
 		      << std::setw(5) << std::setfill(' ')
-		      << tolerance_road_avg_surface_temperature << "\t"
-    		      << tolerance_limit_road << "\t"
+		      << relative_error_road_avg_surface_temperature << "\t"
+    		      << relative_tolerance_limit_road << "\t"
 		      << current_new_avg_road_surface_temperature << "\t"
 		      << previous_new_avg_road_surface_temperature << "\n\n";
+		if (step==150)
+		  {
+		    pcout << "\n\niterations limit reached (" << step << "). Exiting program\n\n";
+		  }
     	      }
 	    
-    	    cell_index_to_new_previous_surface_temperature
-    	      =cell_index_to_new_current__surface_temperature;
-    	  }while ((tolerance_soil_avg_surface_temperature>tolerance_limit_soil) ||
-    		  (tolerance_road_avg_surface_temperature>tolerance_limit_road) ||
+	    cell_index_to_new_previous_surface_temperature=
+    	      cell_index_to_new_current__surface_temperature;
+    	  }while ((relative_error_soil_avg_surface_temperature>relative_tolerance_limit_soil) ||
+    		  (relative_error_road_avg_surface_temperature>relative_tolerance_limit_road) ||
+		  (absolute_error_soil_avg_surface_temperature>absolute_tolerance_limit_soil) ||
+    		  (absolute_error_road_avg_surface_temperature>absolute_tolerance_limit_road) ||
     		  ((pipe_system==true)&&(switch_control==true)&&
     		   ((tolerance_collector_avg_norm>tolerance_limit_collector)||
     		    (tolerance_storage___avg_norm>tolerance_limit_storage__))));
@@ -2550,11 +2559,11 @@ namespace TRL
     	      << std::setw(2) << std::setfill('0') << date_and_time[timestep_number][4] << ":"
     	      << std::setw(2) << std::setfill('0') << date_and_time[timestep_number][5];
     	std::cout.setf( std::ios::fixed, std::ios::floatfield );
-    	pcout << "\tTa:" << std::setw(5) << std::setfill(' ') << std::setprecision(2) << new_air_temperature
-    	      << "\tRs:" << std::setw(7) << std::setfill(' ') << std::setprecision(2) << new_solar_radiation
-    	      << "\tUs:" << std::setw(5) << std::setfill(' ') << std::setprecision(2) << new_wind_speed
-    	      << "\tHr:" << std::setw(6) << std::setfill(' ') << std::setprecision(2) << new_relative_humidity
-    	      << "\tI :" << std::setw(5) << std::setfill(' ') << std::setprecision(2) << new_precipitation
+    	pcout << "\tTa:" << std::setw(5) << std::setfill(' ') << std::setprecision(2) <<met_data[timestep_number][0]
+    	      << "\tRs:" << std::setw(7) << std::setfill(' ') << std::setprecision(2) <<met_data[timestep_number][4]
+    	      << "\tUs:" << std::setw(5) << std::setfill(' ') << std::setprecision(2) <<met_data[timestep_number][2]
+    	      << "\tHr:" << std::setw(6) << std::setfill(' ') << std::setprecision(2) <<met_data[timestep_number][1]
+    	      << "\tI :" << std::setw(5) << std::setfill(' ') << std::setprecision(2) <<met_data[timestep_number][5]
     	      << "\tc :" << std::setw(4) << std::setfill(' ') << std::setprecision(2) << canopy_density
     	      << "\ts :" << std::setw(3) << std::setfill(' ') << std::setprecision(2) << step
     	      << std::endl;
@@ -2658,38 +2667,27 @@ namespace TRL
 	  .resize(soil_heat_fluxes.size()+1,std::vector<double>(number_of_surface_heat_and_mass_fluxes));
     	{
     	  old_solution=solution;
+	  
+    	  cell_index_to_old_surface_temperature=
+    	    cell_index_to_new_current__surface_temperature;
+    	  old_avg_soil_surface_temperature=
+    	    current_new_avg_soil_surface_temperature;
+    	  old_avg_road_surface_temperature=
+    	    current_new_avg_road_surface_temperature;
 
-    	  cell_index_to_old_surface_temperature
-    	    =cell_index_to_new_current__surface_temperature;
-    	  old_avg_soil_surface_temperature
-    	    =current_new_avg_soil_surface_temperature;
-    	  old_avg_road_surface_temperature
-    	    =current_new_avg_road_surface_temperature;
+    	  old_avg_pipe_temperature=
+    	    new_avg_pipe_temperature;
+    	  old_inlet__temperatures_pipes=
+    	    current__new_inlet__temperatures_pipes;
+    	  old_outlet_temperatures_pipes=
+    	    current__new_outlet_temperatures_pipes;
 
-    	  old_avg_pipe_temperature
-    	    =new_avg_pipe_temperature;
-    	  old_inlet__temperatures_pipes
-    	    =current__new_inlet__temperatures_pipes;
-    	  old_outlet_temperatures_pipes
-    	    =current__new_outlet_temperatures_pipes;
-
-    	  old_pipe_heat_flux
-    	    =current__new_pipe_heat_flux;
+    	  old_pipe_heat_flux=
+    	    current__new_pipe_heat_flux;
 
     	  previous_switch_control=switch_control;
-    	  old_control_temperature_collector
-    	    =new_control_temperature_collector;
-
-    	  // cell_index_to_old_outbound_coefficient
-    	  //   =cell_index_to_new_outbound_coefficient;
-
-    	  // cell_index_to_old_inbound_flux
-    	  //   =cell_index_to_new_inbound_flux;
-
-    	  // cell_index_to_old_boundary_coefficient_and_fluxes_road
-    	  //   =cell_index_to_new_boundary_coefficient_and_fluxes_road;;
-    	  // cell_index_to_old_boundary_coefficient_and_fluxes_soil
-    	  //   =cell_index_to_new_boundary_coefficient_and_fluxes_soil;
+    	  old_control_temperature_collector=
+    	    new_control_temperature_collector;
     	}
       }
     /*
