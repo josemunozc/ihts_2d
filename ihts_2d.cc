@@ -204,7 +204,7 @@ namespace TRL
   {
     return inbound_flux_solar;
   }
-
+  
   double BoundaryFlux::inbound_heat_flux_convective()
   {
     return inbound_flux_convective;
@@ -379,8 +379,9 @@ namespace TRL
     std::vector< std::vector<double> > road_heat_fluxes;
     std::vector< std::vector<double> > soil_heat_fluxes;
     
-    static std::string author_options[3];
+    //static std::string author_options[3];
     static std::string weather_options[6];
+    std::string material_type;
 
     Parameters::AllParameters<dim>  parameters;
   };
@@ -740,6 +741,17 @@ namespace TRL
 
     map_material_id_to_material_name[13]=map_material_id_to_material_name[12];
     map_material_id_to_material_name[14]=map_material_id_to_material_name[12];
+
+    if (parameters.material_type=="Bulk"||
+	parameters.material_type=="Porous")
+      {
+	material_type=parameters.material_type;
+      }
+    else
+      {
+	pcout << "Error. Material type " << parameters.material_type << " not implemented.\n";
+	throw -1;
+      }
   }
   
   template<int dim>
@@ -760,47 +772,47 @@ namespace TRL
   template <int dim>
   void Heat_Pipe<dim>::refine_grid ()
   {
-	  typename Triangulation<dim>::active_cell_iterator
-	  cell = triangulation.begin_active(),
-	  endc = triangulation.end();
-	  for (; cell!=endc; ++cell)
-	  {
-		  //if (cell->material_id()==10)
-		  double x=cell->center()[0];
-		  double y=cell->center()[1];
-		  double m=(-2.6737-0.)/(-7.8196+4.);
-		  if ((x<14.8 && x>-7.8196 && y>-0.2) ||
-				  (x<-7.8196 && x>-12.8196 && y>-2.8737) ||
-				  (x<-4.     && x> -7.8196
-						  && y>m*(x+7.8196)-2.6737-0.2))
-			  cell->set_refine_flag();
-	  }
+    typename Triangulation<dim>::active_cell_iterator
+      cell = triangulation.begin_active(),
+      endc = triangulation.end();
+    for (; cell!=endc; ++cell)
+      {
+	//if (cell->material_id()==10)
+	double x=cell->center()[0];
+	double y=cell->center()[1];
+	double m=(-2.6737-0.)/(-7.8196+4.);
+	if ((x<14.8 && x>-7.8196 && y>-0.2) ||
+	    (x<-7.8196 && x>-12.8196 && y>-2.8737) ||
+	    (x<-4.     && x> -7.8196
+	     && y>m*(x+7.8196)-2.6737-0.2))
+	  cell->set_refine_flag();
+      }
 
-	  SolutionTransfer< dim,Vector<double> > solution_transfer(dof_handler);
+    SolutionTransfer< dim,Vector<double> > solution_transfer(dof_handler);
 
-	  std::vector<Vector<double> > transfer_in(2);
-	  transfer_in[0]=old_solution;
-	  transfer_in[1]=    solution;
+    std::vector<Vector<double> > transfer_in(2);
+    transfer_in[0]=old_solution;
+    transfer_in[1]=    solution;
 
-	  triangulation
-	  .prepare_coarsening_and_refinement();
-	  solution_transfer
-	  .prepare_for_coarsening_and_refinement(transfer_in);
+    triangulation
+      .prepare_coarsening_and_refinement();
+    solution_transfer
+      .prepare_for_coarsening_and_refinement(transfer_in);
 
-	  triangulation
-	  .execute_coarsening_and_refinement();
-	  dof_handler.distribute_dofs(fe);
+    triangulation
+      .execute_coarsening_and_refinement();
+    dof_handler.distribute_dofs(fe);
 
-	  setup_system();
+    setup_system();
 
-	  std::vector<Vector<double> > transfer_out(2);
-	  transfer_out[0].reinit(dof_handler.n_dofs());
-	  transfer_out[1].reinit(dof_handler.n_dofs());
+    std::vector<Vector<double> > transfer_out(2);
+    transfer_out[0].reinit(dof_handler.n_dofs());
+    transfer_out[1].reinit(dof_handler.n_dofs());
 
-	  solution_transfer.interpolate (transfer_in, transfer_out);
+    solution_transfer.interpolate (transfer_in, transfer_out);
 
-	  old_solution=transfer_out[0];
-	  solution=transfer_out[1];
+    old_solution=transfer_out[0];
+    solution=transfer_out[1];
   }
 
   template <int dim>
@@ -854,51 +866,51 @@ namespace TRL
   template<int dim>
   void Heat_Pipe<dim>::setup_system()
   {
-	  dof_handler.distribute_dofs(fe);
-	  locally_owned_dofs = dof_handler.locally_owned_dofs();
-	  DoFTools::extract_locally_relevant_dofs (dof_handler,locally_relevant_dofs);
-	  n_local_cells
-	  = GridTools::count_cells_with_subdomain_association (triangulation,
-			  triangulation.locally_owned_subdomain ());
+    dof_handler.distribute_dofs(fe);
+    locally_owned_dofs = dof_handler.locally_owned_dofs();
+    DoFTools::extract_locally_relevant_dofs (dof_handler,locally_relevant_dofs);
+    n_local_cells
+      = GridTools::count_cells_with_subdomain_association (triangulation,
+							   triangulation.locally_owned_subdomain ());
 
-	  local_dofs_per_process = dof_handler.n_locally_owned_dofs_per_processor();
+    local_dofs_per_process = dof_handler.n_locally_owned_dofs_per_processor();
 
-	  constraints.clear();
-	  DoFTools::make_hanging_node_constraints(dof_handler,constraints);
-	  constraints.close();
+    constraints.clear();
+    DoFTools::make_hanging_node_constraints(dof_handler,constraints);
+    constraints.close();
 
-	  DynamicSparsityPattern sparsity_pattern(locally_relevant_dofs);
-	  DoFTools::make_sparsity_pattern(dof_handler,sparsity_pattern,constraints,/*keep constrained dofs*/false);
-	  SparsityTools::distribute_sparsity_pattern (sparsity_pattern,local_dofs_per_process,
-			  mpi_communicator,locally_relevant_dofs);
+    DynamicSparsityPattern sparsity_pattern(locally_relevant_dofs);
+    DoFTools::make_sparsity_pattern(dof_handler,sparsity_pattern,constraints,/*keep constrained dofs*/false);
+    SparsityTools::distribute_sparsity_pattern (sparsity_pattern,local_dofs_per_process,
+						mpi_communicator,locally_relevant_dofs);
 
-	  old_solution
-	  .reinit(locally_owned_dofs,mpi_communicator);
-	  solution
-	  .reinit(locally_owned_dofs,mpi_communicator);
-	  system_rhs
-	  .reinit(locally_owned_dofs,mpi_communicator);
+    old_solution
+      .reinit(locally_owned_dofs,mpi_communicator);
+    solution
+      .reinit(locally_owned_dofs,mpi_communicator);
+    system_rhs
+      .reinit(locally_owned_dofs,mpi_communicator);
 
-	  system_matrix
-	  .reinit(locally_owned_dofs,
-			  locally_owned_dofs,
-			  sparsity_pattern,
-			  mpi_communicator);
-	  mass_matrix
-	  .reinit(locally_owned_dofs,
-			  locally_owned_dofs,
-			  sparsity_pattern,
-			  mpi_communicator);
-	  laplace_matrix_new
-	  .reinit(locally_owned_dofs,
-			  locally_owned_dofs,
-			  sparsity_pattern,
-			  mpi_communicator);
-	  laplace_matrix_old
-	  .reinit(locally_owned_dofs,
-			  locally_owned_dofs,
-			  sparsity_pattern,
-			  mpi_communicator);
+    system_matrix
+      .reinit(locally_owned_dofs,
+	      locally_owned_dofs,
+	      sparsity_pattern,
+	      mpi_communicator);
+    mass_matrix
+      .reinit(locally_owned_dofs,
+	      locally_owned_dofs,
+	      sparsity_pattern,
+	      mpi_communicator);
+    laplace_matrix_new
+      .reinit(locally_owned_dofs,
+	      locally_owned_dofs,
+	      sparsity_pattern,
+	      mpi_communicator);
+    laplace_matrix_old
+      .reinit(locally_owned_dofs,
+	      locally_owned_dofs,
+	      sparsity_pattern,
+	      mpi_communicator);
   }
 
   template<int dim>
@@ -1021,38 +1033,32 @@ namespace TRL
 	  fe_values.get_function_values(localized_old_solution,old_function_values);
 	  fe_values.get_function_values(localized_new_solution,new_function_values);
 	  
-	  Material material(find_material_name(cell->material_id()));
-	  //{
-	  // double old_temperature=10.;
-	  // VectorTools::point_value(dof_handler,
-	  // 				localized_old_solution,
-	  // 				cell->center());
-	  // double new_temperature=10.;
-	  // if (timestep_number==1 && iteration==0)
-	  //   new_temperature=
-	  // 	old_temperature;
-	  // else
-	  //   new_temperature=
-	  // 	VectorTools::point_value(dof_handler,
-	  // 				 localized_new_solution,
-	  // 				 cell->center());
-	  // PorousMaterial material(find_material_name(cell->material_id()),
-	  // 			    find_material_porosity(cell->material_id()),
-	  // 			    find_material_saturation(cell->material_id()));
-	  // thermal_conductivity=
-	  //   material.thermal_conductivity();
-	  // volumetric_heat_capacity=
-	  //   material.volumetric_heat_capacity(theta*new_temperature+(1.-theta)*old_temperature);
-	  //}
 	  for (unsigned int q_point=0; q_point<n_q_points; ++q_point)
 	    {
-	      double thermal_conductivity=
-		material.thermal_conductivity();
-	      double volumetric_heat_capacity=
-		material
-		.volumetric_heat_capacity(theta*new_function_values[q_point]+
-					  (1.-theta)*old_function_values_face[q_point]);
-	      
+	      double thermal_conductivity=0.;
+	      double volumetric_heat_capacity=0.;
+	      if (material_type=="Bulk")
+		{
+		  Material material(find_material_name(cell->material_id()));
+		  thermal_conductivity=
+		    material.thermal_conductivity();
+		  volumetric_heat_capacity=
+		    material
+		    .volumetric_heat_capacity(theta*new_function_values[q_point]+
+					      (1.-theta)*old_function_values[q_point]);
+		}
+	      else
+		{
+		  PorousMaterial material(find_material_name(cell->material_id()));
+		  thermal_conductivity=
+		    material.thermal_conductivity();
+		  volumetric_heat_capacity=
+		    material
+		    .volumetric_heat_capacity(theta*new_function_values[q_point]+
+					      (1.-theta)*old_function_values[q_point]);
+		  
+		}
+
 	      for (unsigned int i=0; i<dofs_per_cell; ++i)
 		for (unsigned int j=0; j<dofs_per_cell; ++j)
 		  {
@@ -1478,9 +1484,79 @@ namespace TRL
   template<int dim>
   void Heat_Pipe<dim>::output_results()
   {
-    //const Vector<double> localized_old_solution (old_solution);
+    const Vector<double> localized_old_solution (old_solution);
     const Vector<double> localized_new_solution (solution);
+    /*
+     * Add information about the material in
+     * each cell and its thermal properties
+     */
+    Vector<double> material_id             (triangulation.n_active_cells());
+    Vector<double> thermal_conductivity    (triangulation.n_active_cells());
+    Vector<double> volumetric_heat_capacity(triangulation.n_active_cells());
+    Vector<double> boundary_id             (triangulation.n_active_cells());
+    
+    const QGauss<dim> quadrature_formula(3);
+    FEValues<dim> fe_values(fe, quadrature_formula,
+    			    update_values | update_gradients |
+    			    update_quadrature_points | update_JxW_values);
+    const unsigned int n_q_points=quadrature_formula.size();
+    std::vector<double> old_function_values(n_q_points);
+    std::vector<double> new_function_values(n_q_points);
 
+    unsigned int vector_index=0;
+    typename DoFHandler<dim>::active_cell_iterator
+      cell = dof_handler.begin_active(),
+      endc = dof_handler.end();
+    for (; cell!=endc; ++cell)
+      {
+    	if (cell->subdomain_id()==this_mpi_process)
+    	  {
+	    fe_values.reinit(cell);
+	    fe_values.get_function_values(localized_old_solution,old_function_values);
+	    fe_values.get_function_values(localized_new_solution,new_function_values);
+	    
+    	    if (material_type=="Bulk")
+    	      {
+    		Material material(find_material_name(cell->material_id()));
+    		thermal_conductivity[vector_index]=
+    		  material.thermal_conductivity();
+    		volumetric_heat_capacity[vector_index]=
+    		  material.volumetric_heat_capacity(theta*new_function_values[0]+
+						    (1.-theta)*old_function_values[0]);
+    	      }
+    	    else
+    	      {
+    		PorousMaterial material(find_material_name(cell->material_id()));
+    		thermal_conductivity[vector_index]=
+    		  material.thermal_conductivity();
+    		volumetric_heat_capacity[vector_index]=
+    		  material.volumetric_heat_capacity(theta*new_function_values[0]+
+						    (1.-theta)*old_function_values[0]);
+    	      }
+	    
+	    material_id[vector_index]=cell->material_id();
+	
+	    if (cell_index_to_new_previous_surface_temperature.find(cell)!=
+		cell_index_to_new_previous_surface_temperature.end())
+	      boundary_id[vector_index]=cell->face(cell_index_to_face_index[cell])->boundary_id();
+	    else
+	      boundary_id[vector_index]=0;
+	  }
+	vector_index++;
+      }
+    
+    for (unsigned int i=0; i<vector_index; i++)
+      {
+    	material_id[i]=
+    	  Utilities::MPI::sum(material_id[i],mpi_communicator);
+	thermal_conductivity[i]=
+	  Utilities::MPI::sum(thermal_conductivity[i],mpi_communicator);
+	volumetric_heat_capacity[i]=
+	  Utilities::MPI::sum(volumetric_heat_capacity[i],mpi_communicator);
+	boundary_id[i]=
+	  Utilities::MPI::sum(boundary_id[i],mpi_communicator);
+      }
+    
     DataOut<dim> data_out;
     data_out.attach_dof_handler(dof_handler);
     data_out.add_data_vector(localized_new_solution,"temperature");
@@ -1491,78 +1567,11 @@ namespace TRL
     GridTools::get_subdomain_association(triangulation,partition_int);
     const Vector<double> partitioning (partition_int.begin (),partition_int.end ());
     data_out.add_data_vector (partitioning, "partitioning");
-    /*
-     * Add information about the material in
-     * each cell and its thermal properties
-     */    
-    //MaterialData material_data (dim,insulation,/*moisture content*/0.23,moisture_movement);
-    std::vector<unsigned int> material_id_int;
-    std::vector<double> thermal_conductivity_int;
-    std::vector<double> volumetric_heat_capacity_int;
-    //std::vector<double> density_int;
-    //std::vector<double> thermal_diffusivity_int;
-
-    std::vector<unsigned int> boundaries;
-    typename DoFHandler<dim>::active_cell_iterator
-      cell = dof_handler.begin_active(),
-      endc = dof_handler.end();
-    for (; cell!=endc; ++cell)
-      {
-	// double old_temperature
-	//   =VectorTools::point_value(dof_handler,
-	// 			    localized_old_solution,
-	// 			    cell->center());
-	// double new_temperature=0.;
-	// if (timestep_number==1)
-	//   new_temperature
-	//     =old_temperature;
-	// else
-	//   new_temperature
-	//     =VectorTools::point_value(dof_handler,
-	// 			      localized_new_solution,
-	// 			      cell->center());
-	
-	unsigned int material_id=cell->material_id();
-	//PorousMaterial material(find_material_name(material_id),
-	//			find_material_porosity(material_id),
-	//			find_material_saturation(material_id));
-	Material material(find_material_name(material_id));
-	material_id_int
-	  .push_back(material_id);
-	thermal_conductivity_int
-	  .push_back(material.thermal_conductivity());
-	volumetric_heat_capacity_int
-	  .push_back(material.volumetric_heat_capacity(/*theta*new_temperature+(1.-theta)*old_temperature)*/0.));
-	//density_int
-	//  .push_back(material.density());
-	// thermal_diffusivity_int
-	//   .push_back(material.thermal_diffusivity());
-
-	if (cell_index_to_new_previous_surface_temperature.find(cell)!=
-	    cell_index_to_new_previous_surface_temperature.end())
-	  boundaries.push_back(cell->face(cell_index_to_face_index[cell])->boundary_id());
-	else
-	  boundaries.push_back(0);
-      }
-    const Vector<double> material_id           (material_id_int.begin(),
-						material_id_int.end());
-    const Vector<double> thermal_conductivity  (thermal_conductivity_int.begin(),
-						thermal_conductivity_int.end());
-    const Vector<double> volumetric_heat_capacity(volumetric_heat_capacity_int.begin(),
-						  volumetric_heat_capacity_int.end());
-    // const Vector<double> density               (density_int.begin(),
-    // 						density_int.end());
-    // const Vector<double> thermal_diffusivity   (thermal_diffusivity_int.begin(),
-    // 						thermal_diffusivity_int.end());
-    const Vector<double> boundary_id           (boundaries.begin(),
-						boundaries.end());
-
-    data_out.add_data_vector (material_id           ,"material_id");
-    data_out.add_data_vector (thermal_conductivity  ,"thermal_conductivity");
-    data_out.add_data_vector (volumetric_heat_capacity,"volumetric_heat_capacity");
-    //data_out.add_data_vector (density               ,"density");
-    //data_out.add_data_vector (thermal_diffusivity   ,"thermal_diffusivity");
-    data_out.add_data_vector (boundary_id   ,"boundary_id");
+    
+    data_out.add_data_vector(material_id             ,"material_id");
+    data_out.add_data_vector(thermal_conductivity    ,"thermal_conductivity");
+    data_out.add_data_vector(volumetric_heat_capacity,"volumetric_heat_capacity");
+    data_out.add_data_vector(boundary_id             ,"boundary_id");
     /*
      * Define output name
      */
@@ -1596,110 +1605,6 @@ namespace TRL
 	std::ofstream pvd_output ("solution.pvd");
 	DataOutBase::write_pvd_record (pvd_output, times_and_names);
       }
-
-    //	  if (this_mpi_process==0)
-    //	  {
-    //		  DataOut<dim> data_out;
-    //		  data_out.attach_dof_handler (dof_handler);
-    //
-    //		  std::vector<std::string> solution_names;
-    //		  solution_names.push_back ("temperature");
-    //
-    //		  data_out.add_data_vector (localized_solution,solution_names);
-    //		  /*
-    //		   * Add information about in which mpi process is each cell being processed
-    //		   */
-    //		  std::vector<unsigned int>
-    //		  partition_int(triangulation.n_active_cells());
-    //		  GridTools::get_subdomain_association
-    //		  (triangulation, partition_int);
-    //		  const Vector<double> partitioning (partition_int.begin (),
-    //				  partition_int.end ());
-    //		  data_out.add_data_vector (partitioning, "partitioning");
-    //		  /*
-    //		   * Add information about the material in
-    //		   * each cell and its thermal properties
-    //		   */
-    //		  MaterialData material_data (dim,insulation,/*moisture content*/0.23,moisture_movement);
-    //		  std::vector<unsigned int> material_id_int;
-    //		  std::vector<double> thermal_conductivity_int;
-    //		  std::vector<double> specific_heat_capacity_int;
-    //		  std::vector<double> density_int;
-    //		  std::vector<double> thermal_diffusivity_int;
-    //
-    //		  std::vector<unsigned int> boundaries;
-    //		  typename DoFHandler<dim>::active_cell_iterator
-    //		  cell = dof_handler.begin_active(),
-    //		  endc = dof_handler.end();
-    //		  for (; cell!=endc; ++cell)
-    //		  {
-    //			  material_id_int.push_back(cell->material_id());
-    //
-    //			  if ((cell->center()[0]< 6.0) &&   // insulation edge
-    //					  (cell->center()[0]>-6.0) &&   // insulation edge
-    //					  (cell->center()[1]<-0.725) && // insulation depth
-    //					  (cell->center()[1]>-9.0) &&   // assumed thermal penetration
-    //					  (preheating_step>=4) &&
-    //					  cell->material_id()==14) // soil material id
-    //				  thermal_conductivity_int.push_back(thermal_conductivity_factor*
-    //						  material_data.get_soil_thermal_conductivity(cell->material_id()));
-    //			  else
-    //				  thermal_conductivity_int
-    //				  .push_back(material_data.get_soil_thermal_conductivity(cell->material_id()));
-    //
-    //			  specific_heat_capacity_int
-    //			  .push_back(material_data.get_soil_heat_capacity      (cell->material_id()));
-    //			  density_int
-    //			  .push_back(material_data.get_soil_density            (cell->material_id()));
-    //			  thermal_diffusivity_int
-    //			  .push_back(material_data.get_soil_thermal_diffusivity(cell->material_id()));
-    //
-    //			  if (cell_index_to_new_previous_surface_temperature.find(cell)!=
-    //					  cell_index_to_new_previous_surface_temperature.end())
-    //				  boundaries.push_back(cell->face(cell_index_to_face_index[cell])->boundary_id());
-    //			  else
-    //				  boundaries.push_back(0);
-    //		  }
-    //		  const Vector<double> material_id           (material_id_int.begin(),
-    //				  material_id_int.end());
-    //		  const Vector<double> thermal_conductivity  (thermal_conductivity_int.begin(),
-    //				  thermal_conductivity_int.end());
-    //		  const Vector<double> specific_heat_capacity(specific_heat_capacity_int.begin(),
-    //				  specific_heat_capacity_int.end());
-    //		  const Vector<double> density               (density_int.begin(),
-    //				  density_int.end());
-    //		  const Vector<double> thermal_diffusivity   (thermal_diffusivity_int.begin(),
-    //				  thermal_diffusivity_int.end());
-    //		  const Vector<double> boundary_id           (boundaries.begin(),
-    //				  boundaries.end());
-    //
-    //		  data_out.add_data_vector (material_id           ,"material_id");
-    //		  data_out.add_data_vector (thermal_conductivity  ,"thermal_conductivity");
-    //		  data_out.add_data_vector (specific_heat_capacity,"specific_heat_capacity");
-    //		  data_out.add_data_vector (density               ,"density");
-    //		  data_out.add_data_vector (thermal_diffusivity   ,"thermal_diffusivity");
-    //		  data_out.add_data_vector (boundary_id   ,"boundary_id");
-    //
-    //		    std::stringstream filename;
-    //		    filename << output_path << "/solution_" << preheating_output_filename << "_"
-    //		    		<< std::setw(5) << std::setfill('0') << timestep_number;
-    ////		      << std::setw(2) << std::setfill('0') << date_and_time[timestep_number][2] << "_"
-    ////			  << std::setw(2) << std::setfill('0') << date_and_time[timestep_number][1] << "_"
-    ////			  << std::setw(2) << std::setfill('0') << date_and_time[timestep_number][0] << "_"
-    ////			  << std::setw(2) << std::setfill('0') << date_and_time[timestep_number][3] << "_"
-    ////			  << std::setw(2) << std::setfill('0') << date_and_time[timestep_number][4];
-    //
-    //		  data_out.build_patches ();
-    //		  if (dim==1)
-    //			  filename << ".gp";
-    //		  if (dim==3 || dim==2)
-    //			  filename << ".vtu";
-    //		  std::ofstream output (filename.str());
-    //		  if (dim==1)
-    //			  data_out.write_gnuplot (output);
-    //		  if (dim==3 || dim==2)
-    //			  data_out.write_vtu (output);
-    //	  }
   }
 
   template<int dim>
@@ -2142,6 +2047,7 @@ namespace TRL
 			     old_solution);
 	old_solution.compress(VectorOperation::insert);
 	solution=old_solution;
+	solution.compress(VectorOperation::insert);
       }
   }
   
