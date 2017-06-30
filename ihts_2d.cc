@@ -1116,27 +1116,15 @@ namespace TRL
 		      if ((face_boundary_indicator==boundary_id_road) ||
 			  (face_boundary_indicator==boundary_id_soil))
 			{
-			  double old_surface_temperature=old_avg_soil_surface_temperature;
-			  double new_surface_temperature=previous_new_avg_soil_surface_temperature;
-			  if (face_boundary_indicator==boundary_id_road)
-			    {
-			      old_surface_temperature=old_avg_road_surface_temperature;
-			      new_surface_temperature=previous_new_avg_road_surface_temperature;
-			    }
-			  //double old_surface_temperature=old_function_values_face[q_face_point];
-			  // =VectorTools::point_value(dof_handler,
-			  // 			  localized_old_solution,
-			  // 			  cell->face(face)->center());
-			    
-			  //double new_surface_temperature=new_function_values_face[q_face_point];
-			  // if (timestep_number==1 && iteration==0)
-			  // 	new_surface_temperature=
-			  // 	  old_surface_temperature;
-			  // else
-			  // 	new_surface_temperature
-			  // 	  VectorTools::point_value(dof_handler,
-			  // 	  			   localized_new_solution,
-			  // 	  			   cell->face(face)->center());
+			  // double old_surface_temperature=old_avg_soil_surface_temperature;
+			  // double new_surface_temperature=previous_new_avg_soil_surface_temperature;
+			  // if (face_boundary_indicator==boundary_id_road)
+			  //   {
+			  //     old_surface_temperature=old_avg_road_surface_temperature;
+			  //     new_surface_temperature=previous_new_avg_road_surface_temperature;
+			  //   }
+			  double old_surface_temperature=old_function_values_face[q_face_point];
+			  double new_surface_temperature=new_function_values_face[q_face_point];
 			  /*
 			   * Heat flux from soil surface or road surface
 			   * */
@@ -1194,7 +1182,7 @@ namespace TRL
 				0.5*old_surface_temperature+
 				0.5*new_surface_temperature;
 			      BoundaryFlux old_boundary_flux(met_data[timestep_number-1],
-							     tav_surface_temperature,
+							     old_surface_temperature,
 							     canopy_density,
 							     override_shading_factor,
 							     local_surface_type);
@@ -2155,15 +2143,14 @@ namespace TRL
     	current__new_collector_avg_norm=0.;
     	current__new_storage___avg_norm=0.;
 	
-
     	double relative_error_soil_avg_surface_temperature=-1000.;
     	double relative_error_road_avg_surface_temperature=-1000.;
 	double absolute_error_soil_avg_surface_temperature=-1000.;
     	double absolute_error_road_avg_surface_temperature=-1000.;
-    	double relative_tolerance_limit_soil=0.1;//%
-    	double relative_tolerance_limit_road=0.1;//%
-	double absolute_tolerance_limit_soil=0.01;//%
-    	double absolute_tolerance_limit_road=0.01;//%
+    	double relative_tolerance_limit_soil=parameters.relative_tolerance_limit_soil;//%
+    	double relative_tolerance_limit_road=parameters.relative_tolerance_limit_road;//%
+	double absolute_tolerance_limit_soil=parameters.absolute_tolerance_limit_soil;//C
+    	double absolute_tolerance_limit_road=parameters.absolute_tolerance_limit_road;//C
 	
 	double tolerance_collector_avg_norm=-1000.;
 	double tolerance_storage___avg_norm=-1000.;
@@ -2426,24 +2413,29 @@ namespace TRL
 	     * print information and exit if there are too many iterations
 	     */
 	    step++;
-    	    if (step>0 && step<150)
+    	    if (step>0 && step<=150)
     	      {
 		std::cout.setf( std::ios::fixed, std::ios::floatfield );
     		pcout << "\tsoil: "
 		      << std::setw(5) << std::setfill(' ') << std::setprecision(4)
-		      << relative_error_soil_avg_surface_temperature << "\t"
-    		      << relative_tolerance_limit_soil << "\t"
+		      << relative_error_soil_avg_surface_temperature << "%\t"
+		      << absolute_error_soil_avg_surface_temperature << "C\t"
+    		      << relative_tolerance_limit_soil << "%\t"
+		      << absolute_tolerance_limit_soil << "C\t"
 		      << current_new_avg_soil_surface_temperature << "\t"
 		      << previous_new_avg_soil_surface_temperature << "\n"
     		      << "\troad: "
 		      << std::setw(5) << std::setfill(' ')
-		      << relative_error_road_avg_surface_temperature << "\t"
-    		      << relative_tolerance_limit_road << "\t"
+		      << relative_error_road_avg_surface_temperature << "%\t"
+		      << absolute_error_road_avg_surface_temperature << "C\t"
+    		      << relative_tolerance_limit_road << "%\t"
+		      << absolute_tolerance_limit_road << "C\t"
 		      << current_new_avg_road_surface_temperature << "\t"
 		      << previous_new_avg_road_surface_temperature << "\n\n";
 		if (step==150)
 		  {
 		    pcout << "\n\niterations limit reached (" << step << "). Exiting program\n\n";
+		    throw -1;
 		  }
     	      }
 	    

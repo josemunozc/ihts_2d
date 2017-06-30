@@ -4,8 +4,8 @@ namespace Parameters
   using namespace dealii;
 
   template <int dim>
-  struct AllParameters
-  {
+    struct AllParameters
+    {
       AllParameters ();
 
       static void declare_parameters (ParameterHandler &prm);
@@ -17,6 +17,10 @@ namespace Parameters
       double canopy_density;
       double shading_factor;
       double thermal_conductivity_factor;
+      double absolute_tolerance_limit_soil;
+      double relative_tolerance_limit_soil;
+      double absolute_tolerance_limit_road;
+      double relative_tolerance_limit_road;
       
       // std::string surface_type;
       // std::string activation_type;
@@ -39,96 +43,103 @@ namespace Parameters
       bool with_insulation;
       bool with_pipe_system;
       bool output_vtu_files;
+      bool snow_layer;
       
       // std::map<unsigned int,std::string> boundary_ids;
     };
+  
+  template <int dim>
+    AllParameters<dim>::AllParameters ()
+    {
+      time_step=0.;
+      theta=0.;
+
+      canopy_density=0.;
+      shading_factor=0.;
+      thermal_conductivity_factor=0.;
+
+      absolute_tolerance_limit_soil=0.;
+      relative_tolerance_limit_soil=0.;
+      absolute_tolerance_limit_road=0.;
+      relative_tolerance_limit_road=0.;
+
+      preheating_step=1;
+      // number_of_boundary_ids=0;
+      // boundary_id_collector=0;
+      // boundary_id_storage=0;
+
+      // with_shading=false;
+      fixed_bc_at_bottom=false;
+      with_insulation=false;
+      with_pipe_system=false;
+      output_vtu_files=false;
+      snow_layer=false;
+    }
 
   template <int dim>
-  AllParameters<dim>::AllParameters ()
-  {
-    time_step=0.;
-    theta=0.;
-
-    canopy_density=0.;
-    shading_factor=0.;
-    thermal_conductivity_factor=0.;
-
-    preheating_step=1;
-    // number_of_boundary_ids=0;
-    // boundary_id_collector=0;
-    // boundary_id_storage=0;
-
-    // with_shading=false;
-    fixed_bc_at_bottom=false;
-    with_insulation=false;
-    with_pipe_system=false;
-    output_vtu_files=false;
-  }
-
-  template <int dim>
-  void
-  AllParameters<dim>::declare_parameters (ParameterHandler &prm)
-  {
-    prm.enter_subsection("time stepping");
+    void
+    AllParameters<dim>::declare_parameters (ParameterHandler &prm)
     {
-      prm.declare_entry("time step", "3600",
-			Patterns::Double(0),
-			"simulation time step");
+      prm.enter_subsection("time stepping");
+      {
+	prm.declare_entry("time step", "3600",
+			  Patterns::Double(0),
+			  "simulation time step");
 
-      prm.declare_entry("theta", "0.5",
-			Patterns::Double(0,1),
-			"value for theta that interpolated between explicit "
-			"Euler (theta=0), Crank-Nicolson (theta=0.5), and "
-			"implicit Euler (theta=1).");
-    }
-    prm.leave_subsection();
+	prm.declare_entry("theta", "0.5",
+			  Patterns::Double(0,1),
+			  "value for theta that interpolated between explicit "
+			  "Euler (theta=0), Crank-Nicolson (theta=0.5), and "
+			  "implicit Euler (theta=1).");
+      }
+      prm.leave_subsection();
 
-    prm.enter_subsection("surface conditions");
-    {
-      prm.declare_entry("canopy density", "0.85",
-			Patterns::Double(0),
-			"fraction of the soil surface covered"
-			"by vegetation.");
-    }
-    prm.leave_subsection();
+      prm.enter_subsection("surface conditions");
+      {
+	prm.declare_entry("canopy density", "0.85",
+			  Patterns::Double(0),
+			  "fraction of the soil surface covered"
+			  "by vegetation.");
+      }
+      prm.leave_subsection();
 
-    prm.enter_subsection("options");
-    {
-      prm.declare_entry("author", "Best",
-			Patterns::Selection("Best|Herb|Fixed"),
-			"The author defines the theoretical framework used "
-			"at the soil boundary condition for heat transfer.");
+      prm.enter_subsection("options");
+      {
+	prm.declare_entry("author", "Best",
+			  Patterns::Selection("Best|Herb|Fixed"),
+			  "The author defines the theoretical framework used "
+			  "at the soil boundary condition for heat transfer.");
 
-      prm.declare_entry("preheating step", "1",
-			Patterns::Integer(1,8),
-			"Defines the simulation step from preanalysis (1)"
-			"installation (2), "
-			"first insulation period (3),"
-			"fist activation period - collection(4), "
-			"second activation period - usage(5), "
-			"second insulation period (6), "
-			"third activation period - collection (7), "
-			"fourth activation period - usage (8).");
+	prm.declare_entry("preheating step", "1",
+			  Patterns::Integer(1,8),
+			  "Defines the simulation step from preanalysis (1)"
+			  "installation (2), "
+			  "first insulation period (3),"
+			  "fist activation period - collection(4), "
+			  "second activation period - usage(5), "
+			  "second insulation period (6), "
+			  "third activation period - collection (7), "
+			  "fourth activation period - usage (8).");
 
-      // prm.declare_entry("with shading", "false",
-      // 			Patterns::Bool(),
-      // 			"Defines the use of a shading factor on the "
-      // 			"road surface. The shading factor is defined by "
-      // 			"shading_factor.");
+	// prm.declare_entry("with shading", "false",
+	// 			Patterns::Bool(),
+	// 			"Defines the use of a shading factor on the "
+	// 			"road surface. The shading factor is defined by "
+	// 			"shading_factor.");
 
-      prm.declare_entry("fixed bc at bottom", "false",
-			Patterns::Bool(),
-			"Defines the state of the boundary condition at the "
-			"domain's bottom, currently two possibilities are "
-			"implemented: free, and fixed (fixed values is defined) "
-			"by fixed_bottom_bc.");
+	prm.declare_entry("fixed bc at bottom", "false",
+			  Patterns::Bool(),
+			  "Defines the state of the boundary condition at the "
+			  "domain's bottom, currently two possibilities are "
+			  "implemented: free, and fixed (fixed values is defined) "
+			  "by fixed_bottom_bc.");
 
-      prm.declare_entry("with insulation", "false",
-			Patterns::Bool(),
-			"Defines if the insulation layer above the storage "
-			"region should be used, if not, regular soil thermal "
-			"properties are used (i.e. the soil that composes most "
-			"the domain.");
+	prm.declare_entry("with insulation", "false",
+			  Patterns::Bool(),
+			  "Defines if the insulation layer above the storage "
+			  "region should be used, if not, regular soil thermal "
+			  "properties are used (i.e. the soil that composes most "
+			  "the domain.");
 
 	prm.declare_entry("with pipe system", "false",
 			  Patterns::Bool(),
@@ -207,63 +218,99 @@ namespace Parameters
 			  Patterns::Bool(),
 			  "If true, output visualization files every ouput_very time "
 			  "steps.");
-    }
-    prm.leave_subsection();
+
+	prm.declare_entry("snow layer", "false",
+			  Patterns::Bool(),
+			  "If true, the problem is solved with a simplified snow layer on the soil "
+			  "and road surfaces. Bear in mind that for now the moments when the snow "
+			  "cover is present are hardcoded in the source code.");
+
+	prm.declare_entry("absolute tolerance limit soil", "0.01",
+			  Patterns::Double(0.),
+			  "Defines the absolute error (C) allowed in the average temperature "
+			  "estimated at the soil surface. This works as an OR with the corresponding "
+			  "relative error.");
+
+	prm.declare_entry("relative tolerance limit soil", "0.1",
+			  Patterns::Double(0.),
+			  "Defines the relative error (%) allowed in the average temperature "
+			  "estimated at the soil surface. This works as an OR with the corresponding "
+			  "absolute error.");
+
+	prm.declare_entry("absolute tolerance limit road", "0.01",
+			  Patterns::Double(0.),
+			  "Defines the absolute error (C) allowed in the average temperature "
+			  "estimated at the road surface. This works as an OR with the corresponding "
+			  "relative error.");
+
+	prm.declare_entry("relative tolerance limit road", "0.1",
+			  Patterns::Double(0.),
+			  "Defines the relative error (%) allowed in the average temperature "
+			  "estimated at the road surface. This works as an OR with the corresponding "
+			  "absolute error.");
+      }
+      prm.leave_subsection();
     
-    prm.enter_subsection("boundary info");
-    {
-      prm.declare_entry("boundary ids", "",
-			Patterns::Map(Patterns::Integer(0,10),Patterns::Anything()),
-			"Relation between boundary ids defined in the mesh and a string "
-			"to identify them. The main limitation is that at the moment the "
-			"string needs to be hard coded in the main code. In Gmsh the default "
-			"boundary id number is 0 (that's why 0 is tagged as 'everything else')");
+      prm.enter_subsection("boundary info");
+      {
+	prm.declare_entry("boundary ids", "",
+			  Patterns::Map(Patterns::Integer(0,10),Patterns::Anything()),
+			  "Relation between boundary ids defined in the mesh and a string "
+			  "to identify them. The main limitation is that at the moment the "
+			  "string needs to be hard coded in the main code. In Gmsh the default "
+			  "boundary id number is 0 (that's why 0 is tagged as 'everything else')");
+      }
+      prm.leave_subsection();
     }
-    prm.leave_subsection();
-  }
 
   template <int dim>
-  void AllParameters<dim>::parse_parameters (ParameterHandler &prm)
-  {
-    prm.enter_subsection("time stepping");
+    void AllParameters<dim>::parse_parameters (ParameterHandler &prm)
     {
-      time_step           = prm.get_double ("time step");
-      theta               = prm.get_double ("theta");
-    }
-    prm.leave_subsection();
+      prm.enter_subsection("time stepping");
+      {
+	time_step           = prm.get_double ("time step");
+	theta               = prm.get_double ("theta");
+      }
+      prm.leave_subsection();
 
-    prm.enter_subsection("surface conditions");
-    {
-      canopy_density = prm.get_double ("canopy density");
-    }
-    prm.leave_subsection();
+      prm.enter_subsection("surface conditions");
+      {
+	canopy_density = prm.get_double ("canopy density");
+      }
+      prm.leave_subsection();
     
-    prm.enter_subsection("options");
-    {
-      author             = prm.get         ("author");
-      preheating_step    = prm.get_integer ("preheating step");
-      // with_shading       = prm.get_bool    ("with shading");
-      fixed_bc_at_bottom = prm.get_bool ("fixed bc at bottom");
-      with_insulation    = prm.get_bool ("with insulation");
-      with_pipe_system   = prm.get_bool ("with pipe system");
-      weather_type       = prm.get      ("weather type");
-      shading_factor     = prm.get_double ("shading factor");
-      thermal_conductivity_factor = prm.get_double ("thermal conductivity factor");
-      input_path         = prm.get      ("input path");
-      output_path        = prm.get("output path");
-      mesh_filename      = prm.get("mesh filename");
-      mesh_dirname       = prm.get("mesh dirname");
-      activation_type    = prm.get("activation type");
-      material_type      = prm.get("material type");
-      output_vtu_files   = prm.get_bool("output vtu files");
+      prm.enter_subsection("options");
+      {
+	author             = prm.get         ("author");
+	preheating_step    = prm.get_integer ("preheating step");
+	// with_shading       = prm.get_bool    ("with shading");
+	fixed_bc_at_bottom = prm.get_bool ("fixed bc at bottom");
+	with_insulation    = prm.get_bool ("with insulation");
+	with_pipe_system   = prm.get_bool ("with pipe system");
+	weather_type       = prm.get      ("weather type");
+	shading_factor     = prm.get_double ("shading factor");
+	thermal_conductivity_factor = prm.get_double ("thermal conductivity factor");
+	input_path         = prm.get      ("input path");
+	output_path        = prm.get("output path");
+	mesh_filename      = prm.get("mesh filename");
+	mesh_dirname       = prm.get("mesh dirname");
+	activation_type    = prm.get("activation type");
+	material_type      = prm.get("material type");
+	output_vtu_files   = prm.get_bool("output vtu files");
+	snow_layer         = prm.get_bool("snow layer");
+
+	absolute_tolerance_limit_soil=prm.get_double("absolute tolerance limit soil");
+	relative_tolerance_limit_soil=prm.get_double("relative tolerance limit soil");
+	absolute_tolerance_limit_road=prm.get_double("absolute tolerance limit road");
+	relative_tolerance_limit_road=prm.get_double("relative tolerance limit road");
+      }
+      prm.leave_subsection();
+      
+      // prm.enter_subsection("boundary info");
+      // {
+      //   boundary_ids = prm.
+      // 	prm.get("boundary ids");
+      // }
+      // prm.leave_subsection();
     }
-    prm.leave_subsection();
-    
-    // prm.enter_subsection("boundary info");
-    // {
-    //   boundary_ids = prm.
-    // 	prm.get("boundary ids");
-    // }
-    // prm.leave_subsection();
-  }
 }

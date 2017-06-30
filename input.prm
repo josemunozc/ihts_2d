@@ -8,21 +8,25 @@ subsection surface conditions
 end
 
 subsection options
-	set author             = Best #  
-	set preheating step    = 1 #
-	set shading factor     = 0 #
-	set fixed bc at bottom = false #
-	set with insulation    = false #
-	set with pipe system   = false #
-	set weather type       = emd-trl #
-	set thermal conductivity factor = 1.0 #
-	set input path       = /home/zerpiko/input #
-#	set output path      = ./output #
-	set mesh filename    = trl_mesh_in_2d.msh #
-	set mesh dirname     = meshes #
-	set activation type  = automatic_activation #
-	set material type    = Porous #
-	set output vtu files = true #
+  set author             = Best #  
+  set preheating step    = 1 #
+  set shading factor     = 0 #
+  set fixed bc at bottom = false #
+  set with insulation    = false #
+  set with pipe system   = false #
+  set weather type       = emd-trl #
+  set thermal conductivity factor = 1.0 #
+  set input path       = /home/zerpiko/input #
+#  set output path      = ./output #
+  set mesh filename    = trl_mesh_in_2d.msh #
+  set mesh dirname     = meshes #
+  set activation type  = automatic_activation #
+  set material type    = Bulk #
+  set output vtu files = true #
+  set absolute tolerance limit soil = 0.01 #
+  set relative tolerance limit soil = 0.1  #
+  set absolute tolerance limit road = 0.01 #
+  set relative tolerance limit road = 0.1  #
 end
 
 #subsection boundary info
