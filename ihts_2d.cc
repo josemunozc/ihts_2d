@@ -530,7 +530,7 @@ namespace TRL
     if (preheating_step==1 && time_step==3600)
       {
 	time_step=3600;
-	timestep_number_max=4320;//70079; // 8 years
+	timestep_number_max=70079; // 8 years
 	initial_date.reserve(6);
 	initial_date.push_back(1);
 	initial_date.push_back(9);
@@ -1179,8 +1179,8 @@ namespace TRL
 			      // 	}
 			      //-----------HEAT FLUXES AND COEFFICIENTS---------//
 			      double tav_surface_temperature=
-				0.5*old_surface_temperature+
-				0.5*new_surface_temperature;
+				0.25*old_surface_temperature+
+				0.75*new_surface_temperature;
 			      BoundaryFlux old_boundary_flux(met_data[timestep_number-1],
 							     old_surface_temperature,
 							     canopy_density,
@@ -2009,6 +2009,9 @@ namespace TRL
 	pcout << "\tAvailable met lines: " << met_data.size()
 	      << std::endl << std::endl;
       }
+    
+    if (date_and_time[timestep_number][1]==8)
+      met_data[timestep_number][2]*=0.1;
   }
   
   template<int dim>
@@ -2156,8 +2159,12 @@ namespace TRL
 	double tolerance_storage___avg_norm=-1000.;
     	double tolerance_limit_collector=0.001;//%
     	double tolerance_limit_storage__=0.001;//%
-    	// if (date_and_time[timestep_number][1]==6)
-    	//   relative_tolerance_limit_soil=0.8;
+	// if (date_and_time[timestep_number][1]== 6 &&
+	//     date_and_time[timestep_number][0]==30)
+	//   absolute_tolerance_limit_soil=0.25;
+	// if (date_and_time[timestep_number][1]== 7 &&
+	//     date_and_time[timestep_number][0]==01)
+	//   absolute_tolerance_limit_soil=0.20;
     	/*
     	 * Then those corresponding to the pipe system convergence. We too
     	 * compare the heat flux at the collector and storage pipes in the
@@ -2413,7 +2420,7 @@ namespace TRL
 	     * print information and exit if there are too many iterations
 	     */
 	    step++;
-    	    if (step>0 && step<=150)
+    	    if (step>0 && step<=400)
     	      {
 		std::cout.setf( std::ios::fixed, std::ios::floatfield );
     		pcout << "\tsoil: "
@@ -2432,7 +2439,13 @@ namespace TRL
 		      << absolute_tolerance_limit_road << "C\t"
 		      << current_new_avg_road_surface_temperature << "\t"
 		      << previous_new_avg_road_surface_temperature << "\n\n";
-		if (step==150)
+
+		if (step==50 || step==100 || step==150 || step==200 || step==250 || step==300 || step==350)
+		  {
+		    pcout << "\n\n 50 iterations reached (" << step << "). increasing absolute limit by 50%\n\n";
+		    absolute_tolerance_limit_soil*=1.5;
+		  }
+		else if (step==400)
 		  {
 		    pcout << "\n\niterations limit reached (" << step << "). Exiting program\n\n";
 		    throw -1;
@@ -2441,13 +2454,23 @@ namespace TRL
 	    
 	    cell_index_to_new_previous_surface_temperature=
     	      cell_index_to_new_current__surface_temperature;
-    	  }while ((relative_error_soil_avg_surface_temperature>relative_tolerance_limit_soil) ||
-    		  (relative_error_road_avg_surface_temperature>relative_tolerance_limit_road) ||
-		  (absolute_error_soil_avg_surface_temperature>absolute_tolerance_limit_soil) ||
-    		  (absolute_error_road_avg_surface_temperature>absolute_tolerance_limit_road) ||
-    		  ((pipe_system==true)&&(switch_control==true)&&
+    	  }while (
+		  (
+		   (relative_error_soil_avg_surface_temperature>relative_tolerance_limit_soil) && // true
+		   (absolute_error_soil_avg_surface_temperature>absolute_tolerance_limit_soil)   //false
+		   )
+		  ||
+		  (
+		   (relative_error_road_avg_surface_temperature>relative_tolerance_limit_road) &&
+		   (absolute_error_road_avg_surface_temperature>absolute_tolerance_limit_road) 
+		   )
+		  ||
+    		  (
+		   (pipe_system==true)&&(switch_control==true)&&
     		   ((tolerance_collector_avg_norm>tolerance_limit_collector)||
-    		    (tolerance_storage___avg_norm>tolerance_limit_storage__))));
+    		    (tolerance_storage___avg_norm>tolerance_limit_storage__))
+		   )
+		  );
 	
     	pcout << "Time step " << timestep_number << "\t"
     	      << std::setw(2) << std::setfill('0') << date_and_time[timestep_number][0] << "/"
@@ -2470,7 +2493,10 @@ namespace TRL
     	   * Output the solution at the beggining, end and every
     	   * certain time stepsy:
     	   */
-    	  if (parameters.output_vtu_files)
+    	  if (parameters.output_vtu_files && 
+	      (preheating_step==1 && (date_and_time[timestep_number][2]==2013 || (date_and_time[timestep_number][2]==2012 && date_and_time[timestep_number][1]>=9)))
+	      ||
+	      preheating_step>1)
     	    {
     	      TimerOutput::Scope timer_section (timer,"Output results");
     	      output_results();
