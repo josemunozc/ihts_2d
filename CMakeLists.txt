@@ -7,11 +7,11 @@ DEAL_II_INITIALIZE_CACHED_VARIABLES()
 
 PROJECT(ihts)
 
-INCLUDE_DIRECTORIES(/home/c1045890/code/libraries)
+INCLUDE_DIRECTORIES(/home/zerpiko/git/libraries)
 
 add_definitions("-Wall")
 
-ADD_LIBRARY(mylib /home/c1045890/code/libraries/SurfaceCoefficients.cpp /home/c1045890/code/libraries/AnalyticSolution.cpp /home/c1045890/code/libraries/BoundaryConditions.cpp /home/c1045890/code/libraries/DataTools.cpp /home/c1045890/code/libraries/Names.cpp /home/c1045890/code/libraries/Material.cpp /home/c1045890/code/libraries/PorousMaterial.cpp)
+ADD_LIBRARY(mylib /home/zerpiko/git/libraries/SurfaceCoefficients.cpp /home/zerpiko/git/libraries/AnalyticSolution.cpp /home/zerpiko/git/libraries/BoundaryConditions.cpp /home/zerpiko/git/libraries/DataTools.cpp /home/zerpiko/git/libraries/Names.cpp /home/zerpiko/git/libraries/Material.cpp /home/zerpiko/git/libraries/PorousMaterial.cpp)
 DEAL_II_SETUP_TARGET(mylib)
 
 

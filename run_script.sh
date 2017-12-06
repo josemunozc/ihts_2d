@@ -12,7 +12,7 @@ function list_include_item {
     return $result
 }
 
-for ((ph=1; ph<2; ph++))
+for ((ph=4; ph<5; ph++))
 do
     with_pipe_system=false;
     with_insulation=false;
@@ -31,9 +31,9 @@ do
 
     echo -e $ph "\t" $with_pipe_system "\t" $with_insulation
 
-    sed -i "s/\tset preheating step    =.*#/\tset preheating step    = $ph #/g" input.prm
-    sed -i "s/\tset with insulation    =.*#/\tset with insulation    = $with_insulation #/g" input.prm
-    sed -i "s/\tset with pipe system   =.*#/\tset with pipe system   = $with_pipe_system #/g" input.prm
+    sed -i "s/  set preheating step    =.*#/  set preheating step    = $ph #/g" input.prm
+    sed -i "s/  set with insulation    =.*#/  set with insulation    = $with_insulation #/g" input.prm
+    sed -i "s/  set with pipe system   =.*#/  set with pipe system   = $with_pipe_system #/g" input.prm
 
     #cat input.prm > output_$ph.txt
     
@@ -41,7 +41,7 @@ do
     
     mpirun -np 1 $CODE input.prm > output_$ph.txt
     
-    mv output/*.vtu visualization
+    mv output/*vtu visualization
     mv output/*.txt summary_output
     mv output/* preheatings
 done

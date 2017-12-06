@@ -9,14 +9,14 @@ end
 
 subsection options
   set author             = Best #  
-  set preheating step    = 1 #
+  set preheating step    = 4 #
   set shading factor     = 0.5 #
   set fixed bc at bottom = false #
-  set with insulation    = false #
-  set with pipe system   = false #
+  set with insulation    = true #
+  set with pipe system   = true #
   set weather type       = emd-trl #
   set thermal conductivity factor = 1.0 #
-  set input path       = /home/c1045890/input #
+  set input path       = /home/zerpiko/input #
 #  set output path      = ./output #
   set mesh filename    = trl_mesh_in_2d.msh #
   set mesh dirname     = meshes #

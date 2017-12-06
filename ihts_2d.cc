@@ -252,8 +252,8 @@ namespace TRL
     void initial_condition();
     void setup_system();
     void assemble_system_petsc();
-    void assemble_system_parallel(bool system_switch,
-				  unsigned int iteration);
+    void assemble_system_parallel(bool system_switch/*,
+						      unsigned int iteration*/);
     unsigned int solve();
 
     void surface_temperatures();
@@ -727,21 +727,31 @@ namespace TRL
 
     current_new_avg_soil_surface_temperature=10.;
     current_new_avg_road_surface_temperature=10.;
-
+    /*
+     * We define a map that relates material id's that are define in the mesh file to
+     * their names in this particular application's context. We also include a vector
+     * of two numbers that define porosity and moisture level to be used for the case
+     * of a porous material. Of course, if the material is not meant to be porous, or
+     * we are assuming it isn't (e..g. in this case pavement, insulation) these numbers
+     * are zero (zero porosity makes irrelevant moisture level in the heat transfer
+     * calculations).
+     */
     map_material_id_to_material_name[8]=std::make_pair("wearing_course",std::vector<double>(2));
     map_material_id_to_material_name[9]=std::make_pair("binder_course",std::vector<double>(2));
     map_material_id_to_material_name[10]=std::make_pair("concrete",std::vector<double>(2));
     map_material_id_to_material_name[11]=std::make_pair("concrete",std::vector<double>(2));
-    map_material_id_to_material_name[12]=std::make_pair("clay_trl",std::vector<double>(2));
-    map_material_id_to_material_name[13]=std::make_pair("clay_trl",std::vector<double>(2));
+    map_material_id_to_material_name[12]=std::make_pair("insulation_trl",std::vector<double>(2));
+    map_material_id_to_material_name[13]=std::make_pair("sand_trl",std::vector<double>(2));
     map_material_id_to_material_name[14]=std::make_pair("clay_trl",std::vector<double>(2));
+
+    map_material_id_to_material_name[14].second[0]=0.40;//porosity
+    map_material_id_to_material_name[14].second[1]=0.81;//moisture content
+    if (insulation==false)
+      {
+	map_material_id_to_material_name[13]=map_material_id_to_material_name[14];
+	map_material_id_to_material_name[12]=map_material_id_to_material_name[14];
+      }
     
-    map_material_id_to_material_name[12].second[0]=0.40;
-    map_material_id_to_material_name[12].second[1]=0.81;
-
-    map_material_id_to_material_name[13]=map_material_id_to_material_name[12];
-    map_material_id_to_material_name[14]=map_material_id_to_material_name[12];
-
     if (parameters.material_type=="Bulk"||
 	parameters.material_type=="Porous")
       {
@@ -982,8 +992,8 @@ namespace TRL
   }
 
   template<int dim>
-  void Heat_Pipe<dim>::assemble_system_parallel(bool system_switch,
-						unsigned int iteration)
+  void Heat_Pipe<dim>::assemble_system_parallel(bool system_switch/*,
+								    unsigned int iteration*/)
   {
     mass_matrix       =0.;
     laplace_matrix_new=0.;
@@ -1364,24 +1374,24 @@ namespace TRL
 			   * we have a positive value this means a loss of energy from
 			   * the soil
 			   */
-			  //unsigned int pipe_number=cell_index_to_pipe_number[cell];
+			  unsigned int pipe_number=cell_index_to_pipe_number[cell];
 			  if (face_boundary_indicator==boundary_id_collector)
 			    {
-			      // inbound_heat_flux_old=-1.*old_pipe_heat_flux[pipe_number]/2.59666;//(2.17);
-			      // // inbound_heat_flux_new=-1.*(0.5*previous_new_pipe_heat_flux[pipe_number]+
-			      // // 			     0.5*current__new_pipe_heat_flux[pipe_number])/(2.17);
-			      //inbound_heat_flux_new=-1.*current__new_pipe_heat_flux[pipe_number]/2.59666;//(2.17);
-			      inbound_heat_flux_old=0.;
-			      inbound_heat_flux_new=0.;
+			      inbound_heat_flux_old=-1.*old_pipe_heat_flux[pipe_number]/2.59666;//(2.17);
+			      // inbound_heat_flux_new=-1.*(0.5*previous_new_pipe_heat_flux[pipe_number]+
+			      // 			     0.5*current__new_pipe_heat_flux[pipe_number])/(2.17);
+			      inbound_heat_flux_new=-1.*current__new_pipe_heat_flux[pipe_number]/2.59666;//(2.17);
+			      // inbound_heat_flux_old=0.;
+			      // inbound_heat_flux_new=0.;
 			    }
 			  else
 			    {
-			      //inbound_heat_flux_old=-1.*old_pipe_heat_flux[pipe_number]/2.59666;//(2.17);//(1.922);
-			      //// inbound_heat_flux_new=-1.*(0.5*previous_new_pipe_heat_flux[pipe_number]+
-			      // // 			     0.5*current__new_pipe_heat_flux[pipe_number])/(2.17);
-			      //inbound_heat_flux_new=-1.*current__new_pipe_heat_flux[pipe_number]/2.59666;//(2.17);
-			      inbound_heat_flux_old=0.;
-			      inbound_heat_flux_new=0.;
+			      inbound_heat_flux_old=-1.*old_pipe_heat_flux[pipe_number]/2.59666;//(2.17);//(1.922);
+			      // inbound_heat_flux_new=-1.*(0.5*previous_new_pipe_heat_flux[pipe_number]+
+			      // 			     0.5*current__new_pipe_heat_flux[pipe_number])/(2.17);
+			      inbound_heat_flux_new=-1.*current__new_pipe_heat_flux[pipe_number]/2.59666;//(2.17);
+			      // inbound_heat_flux_old=0.;
+			      // inbound_heat_flux_new=0.;
 			    }
 			}
 		      else
@@ -1564,7 +1574,7 @@ namespace TRL
      * Define output name
      */
     std::string filename
-      = output_path + "/solution-" //+ preheating_output_filename + "-"
+      = output_path + "/solution-" + preheating_output_filename + "-"
       + Utilities::int_to_string(timestep_number,4)
       + "." + Utilities::int_to_string(this_mpi_process, 3)
       + ".vtu";
@@ -1577,14 +1587,14 @@ namespace TRL
       {
 	std::vector<std::string> filenames;
 	for (unsigned int i=0; i<n_mpi_processes; ++i)
-	  filenames.push_back ("solution-" //+ preheating_output_filename + "-"
+	  filenames.push_back ("solution-" + preheating_output_filename + "-"
 			       + Utilities::int_to_string(timestep_number,4)
 			       + "." + Utilities::int_to_string(i,3)
 			       + ".vtu");
 
 	const std::string
-	  pvtu_master_filename = ("output/solution-" + //+ preheating_output_filename + "-"
-				  Utilities::int_to_string(timestep_number,4) + ".pvtu");
+	  pvtu_master_filename = ("output/solution-" + preheating_output_filename + "-" 
+				  + Utilities::int_to_string(timestep_number,4) + ".pvtu");
 	std::ofstream pvtu_master (pvtu_master_filename.c_str());
 	data_out.write_pvtu_record (pvtu_master, filenames);
 
@@ -1598,70 +1608,72 @@ namespace TRL
   template<int dim>
   void Heat_Pipe<dim>::fill_output_vectors()
   {
-    const Vector<double> localized_solution_temperature(old_solution);
+    /* 
+       const Vector<double> localized_solution_temperature(old_solution);
 
-    Names names(input_path);
-    std::vector<double>borehole_depths;
-    names.get_depths(borehole_depths,"road");
-    unsigned int soil_depths=borehole_depths.size();
-    std::vector<double> soil_bha_temperature_row(soil_depths,0.);
-    std::vector<double> soil_bhf_temperature_row(soil_depths,0.);
-    std::vector<double> soil_bhh_temperature_row(soil_depths,0.);
-    std::vector<double> soil_bhi_temperature_row(soil_depths,0.);
+       Names names(input_path);
+       std::vector<double>borehole_depths;
+       names.get_depths(borehole_depths,"road");
+       unsigned int soil_depths=borehole_depths.size();
+       std::vector<double> soil_bha_temperature_row(soil_depths,0.);
+       std::vector<double> soil_bhf_temperature_row(soil_depths,0.);
+       std::vector<double> soil_bhh_temperature_row(soil_depths,0.);
+       std::vector<double> soil_bhi_temperature_row(soil_depths,0.);
 
-    unsigned int index=0;
-    unsigned int depths=0;
-    for (unsigned int i=0; i<5*soil_depths; i++)
-      {
-    	if (i>=n_mpi_processes*(index+1))
-	  index++;
-    	if (i>=soil_depths*(depths+1))
-	  depths++;
+       unsigned int index=0;
+       unsigned int depths=0;
+       for (unsigned int i=0; i<5*soil_depths; i++)
+       {
+       if (i>=n_mpi_processes*(index+1))
+       index++;
+       if (i>=soil_depths*(depths+1))
+       depths++;
 
-    	if (this_mpi_process==(i-index*n_mpi_processes))
-	  {
-	    if(i<1*soil_depths)
-	      soil_bha_temperature_row[i-depths*soil_depths]
-		=VectorTools::point_value(dof_handler,
-					  localized_solution_temperature,
-					  borehole_A_depths[i-soil_depths*depths]);
-	    if(i<2*soil_depths && i>=1*soil_depths)
-	      soil_bhf_temperature_row[i-depths*soil_depths]
-		=VectorTools::point_value(dof_handler,
-					  localized_solution_temperature,
-					  borehole_F_depths[i-soil_depths*depths]);
-	    if(i<3*soil_depths && i>=2*soil_depths)
-	      soil_bhh_temperature_row[i-depths*soil_depths]
-		=VectorTools::point_value(dof_handler,
-					  localized_solution_temperature,
-					  borehole_H_depths[i-soil_depths*depths]);
-	    if(i<4*soil_depths && i>=3*soil_depths)
-	      soil_bhi_temperature_row[i-depths*soil_depths]
-		=VectorTools::point_value(dof_handler,
-					  localized_solution_temperature,
-					  borehole_I_depths[i-soil_depths*depths]);
-	  }
-      }
-    std::vector< std::vector<double> > temp;
-    temp.push_back(soil_bha_temperature_row);
-    temp.push_back(soil_bhf_temperature_row);
-    temp.push_back(soil_bhh_temperature_row);
-    temp.push_back(soil_bhi_temperature_row);
+       if (this_mpi_process==(i-index*n_mpi_processes))
+       {
+       if(i<1*soil_depths)
+       soil_bha_temperature_row[i-depths*soil_depths]
+       =VectorTools::point_value(dof_handler,
+       localized_solution_temperature,
+       borehole_A_depths[i-soil_depths*depths]);
+       if(i<2*soil_depths && i>=1*soil_depths)
+       soil_bhf_temperature_row[i-depths*soil_depths]
+       =VectorTools::point_value(dof_handler,
+       localized_solution_temperature,
+       borehole_F_depths[i-soil_depths*depths]);
+       if(i<3*soil_depths && i>=2*soil_depths)
+       soil_bhh_temperature_row[i-depths*soil_depths]
+       =VectorTools::point_value(dof_handler,
+       localized_solution_temperature,
+       borehole_H_depths[i-soil_depths*depths]);
+       if(i<4*soil_depths && i>=3*soil_depths)
+       soil_bhi_temperature_row[i-depths*soil_depths]
+       =VectorTools::point_value(dof_handler,
+       localized_solution_temperature,
+       borehole_I_depths[i-soil_depths*depths]);
+       }
+       }
+       std::vector< std::vector<double> > temp;
+       temp.push_back(soil_bha_temperature_row);
+       temp.push_back(soil_bhf_temperature_row);
+       temp.push_back(soil_bhh_temperature_row);
+       temp.push_back(soil_bhi_temperature_row);
 
-    for (unsigned int i=0; i<temp.size(); i++)
-      {
-    	std::vector<double> temp_row;
-    	for (unsigned int j=0; j<temp[i].size(); j++)
-	  temp_row.push_back(Utilities::MPI::sum(temp[i][j],mpi_communicator));
-    	if (i==0)
-	  soil_bha_temperature.push_back(temp_row);
-    	if (i==1)
-	  soil_bhf_temperature.push_back(temp_row);
-    	if (i==2)
-	  soil_bhh_temperature.push_back(temp_row);
-    	if (i==3)
-	  soil_bhi_temperature.push_back(temp_row);
-      }
+       for (unsigned int i=0; i<temp.size(); i++)
+       {
+       std::vector<double> temp_row;
+       for (unsigned int j=0; j<temp[i].size(); j++)
+       temp_row.push_back(Utilities::MPI::sum(temp[i][j],mpi_communicator));
+       if (i==0)
+       soil_bha_temperature.push_back(temp_row);
+       if (i==1)
+       soil_bhf_temperature.push_back(temp_row);
+       if (i==2)
+       soil_bhh_temperature.push_back(temp_row);
+       if (i==3)
+       soil_bhi_temperature.push_back(temp_row);
+       }
+    */
     if (pipe_system==true)
       pipe_heat_fluxes.push_back(current__new_pipe_heat_flux);
   }
@@ -2021,7 +2033,12 @@ namespace TRL
       {
 	std::ifstream file (("./preheatings/"+preheating_input_filename).c_str());
 	if (!file.is_open())
-	  throw 2;
+	  {
+	    pcout << "Initial condition file not found: "
+		  << "./preheatings/" << preheating_input_filename
+		  << std::endl;
+	    throw 2;
+	  }
 
 	Vector<double> initial_condition;
 	initial_condition.block_read (file);
@@ -2121,10 +2138,10 @@ namespace TRL
     	 * Prepare vectors with data at borehole's
     	 * sensor depths. We do this every time step.
     	 */
-	// {
-	//   TimerOutput::Scope timer_section (timer,"Fill output vectors");
-	//   fill_output_vectors();
-	// }
+	{
+	  TimerOutput::Scope timer_section (timer,"Fill output vectors");
+	  fill_output_vectors();
+	}
     	/*
     	 * In the experimental data provided by TRL, in the sensor located nearest to the
     	 * surface, it can be observed a change in the daily variations of temperature for
@@ -2203,8 +2220,8 @@ namespace TRL
     	      soil_heat_fluxes[timestep_number-1][i]=0.;
     	    {
     	      TimerOutput::Scope timer_section (timer,"Assemble temperature");
-    	      assemble_system_parallel(switch_control,
-				       step);
+    	      assemble_system_parallel(switch_control/*,
+						       step*/);
     	      assemble_system_petsc();
     	    }
     	    {
@@ -2494,9 +2511,9 @@ namespace TRL
     	   * certain time stepsy:
     	   */
     	  if (parameters.output_vtu_files && 
-	      (preheating_step==1 && (date_and_time[timestep_number][2]==2013 || (date_and_time[timestep_number][2]==2012 && date_and_time[timestep_number][1]>=9)))
-	      ||
-	      preheating_step>1)
+	      (preheating_step==1 /*&& (date_and_time[timestep_number][2]==2013 || (date_and_time[timestep_number][2]==2012 && date_and_time[timestep_number][1]>=9)))*/
+	       ||
+	       preheating_step>1))
     	    {
     	      TimerOutput::Scope timer_section (timer,"Output results");
     	      output_results();
