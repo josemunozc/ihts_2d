@@ -9,7 +9,7 @@ end
 
 subsection options
   set author             = Best #  
-  set preheating step    = 4 #
+  set preheating step    = 5 #
   set shading factor     = 0.5 #
   set fixed bc at bottom = false #
   set with insulation    = true #

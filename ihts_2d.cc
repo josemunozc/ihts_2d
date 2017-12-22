@@ -530,7 +530,7 @@ namespace TRL
     if (preheating_step==1 && time_step==3600)
       {
 	time_step=3600;
-	timestep_number_max=70079; // 8 years
+	timestep_number_max=200;//70079; // 8 years
 	initial_date.reserve(6);
 	initial_date.push_back(1);
 	initial_date.push_back(9);
@@ -541,7 +541,7 @@ namespace TRL
       }
     else if (preheating_step==2 && time_step==3600)
       {
-	timestep_number_max=5804;
+	timestep_number_max=2;//5804;
 	initial_date.reserve(6);
 	initial_date.push_back(1);
 	initial_date.push_back(9);
@@ -552,7 +552,7 @@ namespace TRL
       }
     else if (preheating_step==3 && time_step==3600)
       {
-	timestep_number_max=2735;
+	timestep_number_max=2;//2735;
 	initial_date.reserve(6);
 	initial_date.push_back(1);
 	initial_date.push_back(5);
@@ -564,7 +564,7 @@ namespace TRL
     else if (preheating_step==4)
       {
 	time_step=900;
-	timestep_number_max=7964;
+	timestep_number_max=2;//7964;
 	initial_date.reserve(6);
 	initial_date.push_back(23);
 	initial_date.push_back(8);
@@ -576,7 +576,7 @@ namespace TRL
     else if (preheating_step==5)
       {
 	time_step=900;
-	timestep_number_max=9500;
+	timestep_number_max=20;//9500;
 	initial_date.reserve(6);
 	initial_date.push_back(14);
 	initial_date.push_back(11);
@@ -588,7 +588,7 @@ namespace TRL
     else if (preheating_step==6)
       {
 	time_step=3600;
-	timestep_number_max=1559;
+	timestep_number_max=2;//1559;
 	initial_date.reserve(6);
 	initial_date.push_back(21);
 	initial_date.push_back(2);
@@ -600,7 +600,7 @@ namespace TRL
     else if (preheating_step==7)
       {
 	time_step=900;
-	timestep_number_max=18044;
+	timestep_number_max=2;//18044;
 	initial_date.reserve(6);
 	initial_date.push_back(27);
 	initial_date.push_back(4);
@@ -612,7 +612,7 @@ namespace TRL
     else if (preheating_step==8)
       {
 	time_step=900;
-	timestep_number_max=11516;
+	timestep_number_max=2;//11516;
 	initial_date.reserve(6);
 	initial_date.push_back(1);
 	initial_date.push_back(11);
@@ -1112,32 +1112,29 @@ namespace TRL
 		  fe_face_values.get_function_values(localized_old_solution,old_function_values_face);
 		  fe_face_values.get_function_values(localized_new_solution,new_function_values_face);
 		  for (unsigned int q_face_point=0; q_face_point<n_face_q_points; ++q_face_point)
-		    {		      
+		    {
 		      double outbound_convective_coefficient_new=0.;
 		      double outbound_convective_coefficient_old=0.;
 		      double inbound_heat_flux_new=0.;
 		      double inbound_heat_flux_old=0.;
 		      /*
-		       * Variables for heat flux from surface. The convective coefficients below
-		       * include both convective and infrared interactions since they can be
-		       * represented in a similar way (after the radiative coefficients have
-		       * been linearized).
+		       * The contributions for heat flow and heat transfer coefficients
+		       * are calculated below for the soil surface, and for the pipe 
+		       * surfaces.
+		       * 
+		       * The coefficients bellow labelled as 'convective' include both
+		       * convective and infrared interactions since they can be both 
+		       * represented in a similar way (after the radiative coefficients 
+		       * have been linearized).
 		       */
 		      if ((face_boundary_indicator==boundary_id_road) ||
 			  (face_boundary_indicator==boundary_id_soil))
 			{
-			  // double old_surface_temperature=old_avg_soil_surface_temperature;
-			  // double new_surface_temperature=previous_new_avg_soil_surface_temperature;
-			  // if (face_boundary_indicator==boundary_id_road)
-			  //   {
-			  //     old_surface_temperature=old_avg_road_surface_temperature;
-			  //     new_surface_temperature=previous_new_avg_road_surface_temperature;
-			  //   }
 			  double old_surface_temperature=old_function_values_face[q_face_point];
 			  double new_surface_temperature=new_function_values_face[q_face_point];
 			  /*
 			   * Heat flux from soil surface or road surface
-			   * */
+			   */
 			  if ((author=="Herb"   ) ||
 			      (author=="Jansson") ||
 			      (author=="Best"   ))
@@ -1260,7 +1257,6 @@ namespace TRL
 				  outbound_convective_coefficient_new=0.;
 				}
 			      
-			      
 			      double cell_face_diameter=cell->face(face)->diameter();
 			      if (q_face_point==0)
 				{
@@ -1309,7 +1305,7 @@ namespace TRL
 					((   theta)*inbound_heat_flux_new+
 					 (1.-theta)*inbound_heat_flux_old);
 				    }
-				  else if (face_boundary_indicator==boundary_id_soil)
+				  else
 				    {
 				      soil_heat_fluxes[timestep_number-1][0]+=//J/m
 				      	time_step*cell_face_diameter*
@@ -1354,17 +1350,9 @@ namespace TRL
 					((   theta)*inbound_heat_flux_new+
 					 (1.-theta)*inbound_heat_flux_old);
 				    }
-				  else
-				    {
-				      pcout << "Error. face_boundary_id " << face_boundary_indicator
-					    << " not implemented.";
-				      pcout << std::endl;
-				      throw 1;
-				    }
 				}
 			    }
 			}
-		      // collector and storage pipes in 2D
 		      else if ((face_boundary_indicator==boundary_id_collector) ||
 			       (face_boundary_indicator==boundary_id_storage))
 			{
@@ -1396,11 +1384,12 @@ namespace TRL
 			}
 		      else
 			{
-			  pcout << "Error: author not implemented." << std::endl
-				<< "Error in assembling function."  << std::endl;
+			  pcout << "Error in assembling function."  << std::endl
+				<< "Error: Boundary Id "
+				<< face_boundary_indicator << " not found." << std::endl;
 			  throw 3;
 			}
-
+		      
 		      for (unsigned int i=0; i<dofs_per_cell; ++i)
 			{
 			  if ((face_boundary_indicator==boundary_id_road) ||
@@ -2176,12 +2165,6 @@ namespace TRL
 	double tolerance_storage___avg_norm=-1000.;
     	double tolerance_limit_collector=0.001;//%
     	double tolerance_limit_storage__=0.001;//%
-	// if (date_and_time[timestep_number][1]== 6 &&
-	//     date_and_time[timestep_number][0]==30)
-	//   absolute_tolerance_limit_soil=0.25;
-	// if (date_and_time[timestep_number][1]== 7 &&
-	//     date_and_time[timestep_number][0]==01)
-	//   absolute_tolerance_limit_soil=0.20;
     	/*
     	 * Then those corresponding to the pipe system convergence. We too
     	 * compare the heat flux at the collector and storage pipes in the
@@ -2195,8 +2178,7 @@ namespace TRL
     	 * state through the whole simulation.
     	 * Here we also need a variable to tell us how many times has this
     	 * loop been performed.
-    	 */
-    	/*
+    	 *
     	 * We want to store the soil and road heat and mass fluxes at each
     	 * time step. This is done in a vectors of vectors, a kind of matrix.
     	 * Every line corresponds to a time step. As we don't know a priori
@@ -2302,12 +2284,43 @@ namespace TRL
     		else if (preheating_step==5 ||
     			 preheating_step==8)
     		  {
-    		    const Vector<double> localized_solution_temperature(old_solution);
+    		    //const Vector<double> localized_solution_temperature(old_solution);
+		    /*
+		     * It seems like deal.ii changed the way point_value works. Now the cell where the 
+		     * point lies needs to be locally owned by the mpi process. I check for this with 
+		     * find_active_cell_around_point and if true we ask for the value at that point, if
+		     * not, then we set the variable to zero. After this, we use Utilities::MPI::sum to
+		     * sum the all the copies of this variable in every mpi process (note that only one
+		     * should be different from zero) and the result is assingned to the variable in
+		     * every mpi process. After, the variable in all mpi process should have the same
+		     * value. More info about this problem can be found in:
+		     * https://groups.google.com/forum/#!topic/dealii/vVHyTD6ilDQ
+		     * https://github.com/dealii/dealii/issues/5367
+		     *
+		     * In any case, using point_value is not an efficient way to find the collector
+		     * temperature. I should just average the cell temperature (assuming that the cell
+		     * is relatively small).
+		     */
+		    auto located_cell=
+		      GridTools::find_active_cell_around_point(triangulation, Point<dim>(0.,-0.025));
+		    if(located_cell->is_locally_owned() )
+		      {
+		    	new_control_temperature_collector
+		    	  =VectorTools::point_value(dof_handler,
+		    				    old_solution,//localized_solution_temperature,
+		    				    Point<dim>(0.,-0.025));
+		      }
+		    else
+		      new_control_temperature_collector=0.;
 
-    		    new_control_temperature_collector
-    		      =VectorTools::point_value(dof_handler,
-    						localized_solution_temperature,
-    						Point<dim>(0.,-0.025));
+		    new_control_temperature_collector=
+		      Utilities::MPI::sum(new_control_temperature_collector,
+					  mpi_communicator);
+		    
+		    //new_control_temperature_collector=10;
+
+		    
+		    
     		    new_control_temperature___storage
     		      =current__new_storage___avg_norm;
     		  }
@@ -2468,7 +2481,7 @@ namespace TRL
 		    throw -1;
 		  }
     	      }
-	    
+	    //std::cout << "mpi: " << this_mpi_process << "\tts: " << timestep_number << "\tstep: " << step << std::endl;
 	    cell_index_to_new_previous_surface_temperature=
     	      cell_index_to_new_current__surface_temperature;
     	  }while (
@@ -2488,6 +2501,8 @@ namespace TRL
     		    (tolerance_storage___avg_norm>tolerance_limit_storage__))
 		   )
 		  );
+
+
 	
     	pcout << "Time step " << timestep_number << "\t"
     	      << std::setw(2) << std::setfill('0') << date_and_time[timestep_number][0] << "/"
@@ -2505,6 +2520,9 @@ namespace TRL
     	      << "\tc :" << std::setw(4) << std::setfill(' ') << std::setprecision(2) << canopy_density
     	      << "\ts :" << std::setw(3) << std::setfill(' ') << std::setprecision(2) << step
     	      << std::endl;
+	
+
+	
     	{
     	  /*
     	   * Output the solution at the beggining, end and every
@@ -2524,9 +2542,12 @@ namespace TRL
     	   */
     	  if (timestep_number==timestep_number_max)
     	    {
+	      //std::cout << "mpi: " << this_mpi_process << std::endl;
+	      
     	      TimerOutput::Scope timer_section (timer,"Output text files");
     	      const Vector<double> localized_solution_temperature (solution);
-    	      if (this_mpi_process==0)
+
+	      if (this_mpi_process==0)
     		{
     		  std::vector< std::vector<int> >::const_iterator
     		    first=date_and_time.begin(), second=date_and_time.begin()+timestep_number_max;
@@ -2643,6 +2664,7 @@ namespace TRL
 
 int main(int argc, char **argv)
 {
+
   const unsigned int dim=2;
 	
   try

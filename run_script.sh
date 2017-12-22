@@ -12,7 +12,7 @@ function list_include_item {
     return $result
 }
 
-for ((ph=4; ph<5; ph++))
+for ((ph=5; ph<6; ph++))
 do
     with_pipe_system=false;
     with_insulation=false;
@@ -39,7 +39,7 @@ do
     
     CODE=mycode
     
-    mpirun -np 1 $CODE input.prm > output_$ph.txt
+    mpirun -np 2 $CODE input.prm #> output_$ph.txt
     
     mv output/*vtu visualization
     mv output/*.txt summary_output
