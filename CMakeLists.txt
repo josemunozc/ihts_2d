@@ -1,17 +1,17 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.8)
 
 FIND_PACKAGE(deal.II 8.5.0 REQUIRED
-  HINTS /opt/dealii/
+  HINTS /opt/dealii-stable/
   )
 DEAL_II_INITIALIZE_CACHED_VARIABLES()
 
 PROJECT(ihts)
 
-INCLUDE_DIRECTORIES(/home/zerpiko/git/libraries)
+INCLUDE_DIRECTORIES(/home/mobarekhj/git/libraries)
 
 add_definitions("-Wall")
 
-ADD_LIBRARY(mylib /home/zerpiko/git/libraries/SurfaceCoefficients.cpp /home/zerpiko/git/libraries/AnalyticSolution.cpp /home/zerpiko/git/libraries/BoundaryConditions.cpp /home/zerpiko/git/libraries/DataTools.cpp /home/zerpiko/git/libraries/Names.cpp /home/zerpiko/git/libraries/Material.cpp /home/zerpiko/git/libraries/PorousMaterial.cpp)
+ADD_LIBRARY(mylib /home/mobarekhj/git/libraries/SurfaceCoefficients.cpp /home/mobarekhj/git/libraries/AnalyticSolution.cpp /home/mobarekhj/git/libraries/BoundaryConditions.cpp /home/mobarekhj/git/libraries/DataTools.cpp /home/mobarekhj/git/libraries/Names.cpp /home/mobarekhj/git/libraries/Material.cpp /home/mobarekhj/git/libraries/PorousMaterial.cpp)
 DEAL_II_SETUP_TARGET(mylib)
 
 

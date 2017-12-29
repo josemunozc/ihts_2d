@@ -12,7 +12,7 @@ function list_include_item {
     return $result
 }
 
-for ((ph=5; ph<6; ph++))
+for ((ph=1; ph<3; ph++))
 do
     with_pipe_system=false;
     with_insulation=false;
@@ -44,6 +44,7 @@ do
     mv output/*vtu visualization
     mv output/*.txt summary_output
     mv output/* preheatings
+    mv visualization/*vtu output
 done
 
 

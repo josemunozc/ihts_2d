@@ -530,7 +530,7 @@ namespace TRL
     if (preheating_step==1 && time_step==3600)
       {
 	time_step=3600;
-	timestep_number_max=200;//70079; // 8 years
+	timestep_number_max=2;//70079; // 8 years
 	initial_date.reserve(6);
 	initial_date.push_back(1);
 	initial_date.push_back(9);
@@ -2031,7 +2031,8 @@ namespace TRL
 
 	Vector<double> initial_condition;
 	initial_condition.block_read (file);
-
+	old_solution=initial_condition;
+	
 	file.close();
 	if (file.is_open())
 	  throw 3;
@@ -2068,10 +2069,6 @@ namespace TRL
       setup_system();
     }
     {
-      TimerOutput::Scope timer_section(timer,"Set initial condition");
-      initial_condition();
-    }
-    {
       TimerOutput::Scope timer_section(timer,"Mesh info");
       mesh_info();
       refine_grid();
@@ -2079,6 +2076,10 @@ namespace TRL
       refine_grid();
       mesh_info();
       //surface_temperatures();
+    }
+    {
+      TimerOutput::Scope timer_section(timer,"Set initial condition");
+      initial_condition();
     }
     /*
       It looks like the system was active whenever the temperature difference between
