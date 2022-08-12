@@ -252,8 +252,7 @@ namespace TRL
     void initial_condition();
     void setup_system();
     void assemble_system_petsc();
-    void assemble_system_parallel(bool system_switch/*,
-						      unsigned int iteration*/);
+    void assemble_system_parallel(bool system_switch);
     unsigned int solve();
 
     void surface_temperatures();
@@ -1951,7 +1950,7 @@ namespace TRL
 	      }
 
 	    data_tools.seconds_to_date(date_and_time,
-				       all_dates_in_seconds);
+			       all_dates_in_seconds);
 
 	    AnalyticSolution analytic_solution(0,0,0,"",false,false,type_of_weather);
 	    for (unsigned int i=0; i<date_and_time.size(); i++)
@@ -1970,9 +1969,9 @@ namespace TRL
 		met_data_line
 		  .push_back(analytic_solution.get_analytic_precipitation(/*initial_time*/));
 		/*
-		 * there are negative entries in solar radiation and positive
-		 * entries in the middle of the night, this should help fix it.
-		 */
+         * there are negative entries in solar radiation and positive
+         * entries in the middle of the night, this should help fix it.
+         */
 		// if (met_data_line[4]<0.)
 		//   met_data_line[4]=0;
 		// if (((date_and_time[i][3]>=21)||
@@ -2014,20 +2013,20 @@ namespace TRL
     if (date_and_time[timestep_number][1]==8)
       met_data[timestep_number][2]*=0.1;
   }
-  
+
   template<int dim>
   void Heat_Pipe<dim>::initial_condition()
   {
     if (preheating_step>1)
       {
-	std::ifstream file (("./preheatings/"+preheating_input_filename).c_str());
-	if (!file.is_open())
-	  {
-	    pcout << "Initial condition file not found: "
-		  << "./preheatings/" << preheating_input_filename
-		  << std::endl;
-	    throw 2;
-	  }
+          std::ifstream file (("./preheatings/"+preheating_input_filename).c_str());
+          if (!file.is_open())
+          {
+            pcout << "Initial condition file not found: "
+        	  << "./preheatings/" << preheating_input_filename
+        	  << std::endl;
+            throw 2;
+          }
 
 	Vector<double> initial_condition;
 	initial_condition.block_read (file);
@@ -2039,16 +2038,16 @@ namespace TRL
       }
     else
       {
-	VectorTools::project(dof_handler,
-			     constraints, QGauss<dim>(3),
-			     ConstantFunction<dim>(10.),
-			     old_solution);
-	old_solution.compress(VectorOperation::insert);
-	solution=old_solution;
-	solution.compress(VectorOperation::insert);
+        VectorTools::project(dof_handler,
+	        constraints, QGauss<dim>(3),
+	        ConstantFunction<dim>(10.),
+	        old_solution);
+        old_solution.compress(VectorOperation::insert);
+        solution=old_solution;
+        solution.compress(VectorOperation::insert);
       }
   }
-  
+
   template<int dim>
   void Heat_Pipe<dim>::run()
   {
@@ -2075,7 +2074,6 @@ namespace TRL
       mesh_info();
       refine_grid();
       mesh_info();
-      //surface_temperatures();
     }
     {
       TimerOutput::Scope timer_section(timer,"Set initial condition");
@@ -2105,7 +2103,7 @@ namespace TRL
     std::vector<double> old_inlet__temperatures_pipes(number_of_pipes,0);
     std::vector<double> old_outlet_temperatures_pipes(number_of_pipes,0);
     std::vector<double> previous_new_inlet__temperatures_pipes(number_of_pipes,0);
-    //    std::vector<double> previous_new_outlet_temperatures_pipes(number_of_pipes,0);
+    //std::vector<double> previous_new_outlet_temperatures_pipes(number_of_pipes,0);
     std::vector<double> current__new_inlet__temperatures_pipes(number_of_pipes,0);
     std::vector<double> current__new_outlet_temperatures_pipes(number_of_pipes,0);
     //
@@ -2114,82 +2112,98 @@ namespace TRL
      * initial time and many other variables are defined in the constructor
      */
     for (timestep_number=1, time=time_step;
-    	 timestep_number<=timestep_number_max;
-    	 timestep_number++, time+=time_step)
+         timestep_number<=timestep_number_max;
+         timestep_number++, time+=time_step)
       {
     	/*
     	 * Update meteorological data
     	 */
     	{
-    	  TimerOutput::Scope timer_section (timer,"Update met data");
-    	  update_met_data ();
+          TimerOutput::Scope timer_section (timer,"Update met data");
+          update_met_data ();
     	}
     	/*
-    	 * Prepare vectors with data at borehole's
-    	 * sensor depths. We do this every time step.
+         * Prepare vectors with data at borehole's sensor depths.
+         * We do this every time step.
     	 */
-	{
-	  TimerOutput::Scope timer_section (timer,"Fill output vectors");
-	  fill_output_vectors();
-	}
+         {
+             TimerOutput::Scope timer_section (timer,"Fill output vectors");
+             fill_output_vectors();
+         }
     	/*
-    	 * In the experimental data provided by TRL, in the sensor located nearest to the
-    	 * surface, it can be observed a change in the daily variations of temperature for
-    	 * the months of December to March. It is believe that this effect is produced by
-    	 * different canopy densities above the soil's surface.
+         * In the experimental data provided by TRL, in the sensor located nearest to the
+         * surface, it can be observed a change in the daily variations of temperature for
+         * the months of December to March. It is believe that this effect is produced by
+         * different canopy densities above the soil's surface.
     	 */
-    	canopy_density=parameters.canopy_density;
-    	if (author=="Best")
-    	  if (date_and_time[timestep_number][1]>=10 &&
-    	      date_and_time[timestep_number][1]<=2)
-    	    canopy_density=parameters.canopy_density;
-    	/*
-    	 * Here we define and initialise variables for convergence
-    	 * criteria. First, those corresponding to the surface
-    	 * temperature convergence. We also need a variable to
-    	 * tell us how many times have the loop been performed
-    	 * in each time step.
-    	 */
-    	current__new_collector_avg_norm=0.;
-    	current__new_storage___avg_norm=0.;
+        canopy_density=parameters.canopy_density;
+        if (author=="Best")
+            if (date_and_time[timestep_number][1]>=10 &&
+                date_and_time[timestep_number][1]<=2)
+                    canopy_density=parameters.canopy_density;
+        /*
+         * Here we define and initialise variables for convergence
+         * criteria. First, those corresponding to the surface
+         * temperature convergence. We also need a variable to
+         * tell us how many times have the loop been performed
+         * in each time step.
+         */
+         current__new_collector_avg_norm=0.;
+         current__new_storage___avg_norm=0.;
+         
+         double relative_error_soil_avg_surface_temperature=-1000.;
+         double relative_error_road_avg_surface_temperature=-1000.;
+         double absolute_error_soil_avg_surface_temperature=-1000.;
+         double absolute_error_road_avg_surface_temperature=-1000.;
+         double relative_tolerance_limit_soil=parameters.relative_tolerance_limit_soil;//%
+         double relative_tolerance_limit_road=parameters.relative_tolerance_limit_road;//%
+         double absolute_tolerance_limit_soil=parameters.absolute_tolerance_limit_soil;//C
+         double absolute_tolerance_limit_road=parameters.absolute_tolerance_limit_road;//C
 	
-    	double relative_error_soil_avg_surface_temperature=-1000.;
-    	double relative_error_road_avg_surface_temperature=-1000.;
-	double absolute_error_soil_avg_surface_temperature=-1000.;
-    	double absolute_error_road_avg_surface_temperature=-1000.;
-    	double relative_tolerance_limit_soil=parameters.relative_tolerance_limit_soil;//%
-    	double relative_tolerance_limit_road=parameters.relative_tolerance_limit_road;//%
-	double absolute_tolerance_limit_soil=parameters.absolute_tolerance_limit_soil;//C
-    	double absolute_tolerance_limit_road=parameters.absolute_tolerance_limit_road;//C
-	
-	double tolerance_collector_avg_norm=-1000.;
-	double tolerance_storage___avg_norm=-1000.;
-    	double tolerance_limit_collector=0.001;//%
-    	double tolerance_limit_storage__=0.001;//%
-    	/*
-    	 * Then those corresponding to the pipe system convergence. We too
-    	 * compare the heat flux at the collector and storage pipes in the
-    	 * following way: average the collector heat flux for all pipes and
-    	 * compare the new and old values. When the difference between these
-    	 * values is less than 10 Watts, break the loop.
-    	 * We also need vectors that define the current state of the pipe
-    	 * system. We will work with these temporal vectors and we will
-    	 * update the originals once the solution converges. These vectors
-    	 * are meant to store just the current state of the system, not the
-    	 * state through the whole simulation.
-    	 * Here we also need a variable to tell us how many times has this
-    	 * loop been performed.
-    	 *
-    	 * We want to store the soil and road heat and mass fluxes at each
-    	 * time step. This is done in a vectors of vectors, a kind of matrix.
-    	 * Every line corresponds to a time step. As we don't know a priori
-    	 * how many time steps are going to be performed, we add a new line
-    	 * every time we enter a new time step. The line is rewritten
-    	 * every time the system is assembled and when the system converges
-    	 * it will store the final heat fluxes for that time step.
-    	 */
-    	for (unsigned int i=0; i<number_of_pipes; i++)
-    	  current__new_pipe_heat_flux[i]=0.;
+         double tolerance_collector_avg_norm=-1000.;
+         double tolerance_storage___avg_norm=-1000.;
+         double tolerance_limit_collector=0.001;//%
+         double tolerance_limit_storage__=0.001;//%
+
+
+
+
+
+
+
+         /*
+          * Then those corresponding to the pipe system convergence. We too
+          * compare the heat flux at the collector and storage pipes in the
+          * following way: average the collector heat flux for all pipes and
+          * compare the new and old values. When the difference between these
+          * values is less than 10 Watts, break the loop.
+          * We also need vectors that define the current state of the pipe
+          * system. We will work with these temporal vectors and we will
+          * update the originals once the solution converges. These vectors
+          * are meant to store just the current state of the system, not the
+          * state through the whole simulation.
+          * Here we also need a variable to tell us how many times has this
+          * loop been performed.
+          *
+          * We want to store the soil and road heat and mass fluxes at each
+          * time step. This is done in a vectors of vectors, a kind of matrix.
+          * Every line corresponds to a time step. As we don't know a priori
+          * how many time steps are going to be performed, we add a new line
+          * every time we enter a new time step. The line is rewritten
+          * every time the system is assembled and when the system converges
+          * it will store the final heat fluxes for that time step.
+          */
+
+
+
+
+
+
+
+
+
+          for (unsigned int i=0; i<number_of_pipes; i++)
+            current__new_pipe_heat_flux[i]=0.;
 
     	unsigned int step=0;
     	do
@@ -2657,9 +2671,9 @@ namespace TRL
      * Nothing better than a job well done (hopefully)
      */
     pcout << std::endl
-	  << std::endl << "\t"
-	  << "\t Job Done!!"
-	  << std::endl;
+          << std::endl << "\t"
+          << "\t Job Done!!"
+          << std::endl;
   }
 }
 
@@ -2667,7 +2681,7 @@ int main(int argc, char **argv)
 {
 
   const unsigned int dim=2;
-	
+
   try
     {
       using namespace dealii;
@@ -2675,10 +2689,10 @@ int main(int argc, char **argv)
 
       Utilities::MPI::MPI_InitFinalize mpi_initialization(argc,argv,1);
       {
-	deallog.depth_console (0);
+        deallog.depth_console (0);
 
-	Heat_Pipe<dim> trl_problem(argc,argv);
-	trl_problem.run ();
+        Heat_Pipe<dim> trl_problem(argc,argv);
+        trl_problem.run ();
       }
     }
   catch (std::exception &exc)
@@ -2697,12 +2711,12 @@ int main(int argc, char **argv)
   catch (...)
     {
       std::cerr << std::endl << std::endl
-		<< "----------------------------------------------------"
-		<< std::endl;
+                << "----------------------------------------------------"
+                << std::endl;
       std::cerr << "Unknown exception!" << std::endl
-		<< "Aborting!" << std::endl
-		<< "----------------------------------------------------"
-		<< std::endl;
+                << "Aborting!" << std::endl
+                << "----------------------------------------------------"
+                << std::endl;
       return 1;
     }
 

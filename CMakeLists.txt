@@ -1,24 +1,33 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.8)
 
 FIND_PACKAGE(deal.II 8.5.0 REQUIRED
-  HINTS /opt/dealii-stable/
+  HINTS ${DEAL_II_DIR} ../ ../../ $ENV{DEAL_II_DIR}
   )
 DEAL_II_INITIALIZE_CACHED_VARIABLES()
 
-PROJECT(ihts)
+PROJECT(mycode)
 
-INCLUDE_DIRECTORIES(/home/mobarekhj/git/libraries)
+INCLUDE_DIRECTORIES($ENV{HOME}/git/libraries)
+ADD_LIBRARY(mylib 
+    $ENV{HOME}/git/libraries/SurfaceCoefficients.cpp 
+    $ENV{HOME}/git/libraries/AnalyticSolution.cpp 
+    $ENV{HOME}/git/libraries/BoundaryConditions.cpp 
+    $ENV{HOME}/git/libraries/DataTools.cpp 
+    $ENV{HOME}/git/libraries/Names.cpp 
+    $ENV{HOME}/git/libraries/Material.cpp 
+    $ENV{HOME}/git/libraries/PorousMaterial.cpp)
 
 add_definitions("-Wall")
 
-ADD_LIBRARY(mylib /home/mobarekhj/git/libraries/SurfaceCoefficients.cpp /home/mobarekhj/git/libraries/AnalyticSolution.cpp /home/mobarekhj/git/libraries/BoundaryConditions.cpp /home/mobarekhj/git/libraries/DataTools.cpp /home/mobarekhj/git/libraries/Names.cpp /home/mobarekhj/git/libraries/Material.cpp /home/mobarekhj/git/libraries/PorousMaterial.cpp)
 DEAL_II_SETUP_TARGET(mylib)
 
 
-ADD_EXECUTABLE(mycode ihts_2d.cc)
-DEAL_II_SETUP_TARGET(mycode)
+ADD_EXECUTABLE(${PROJECT_NAME} ihts_2d.cc)
+DEAL_II_SETUP_TARGET(${PROJECT_NAME})
 
-TARGET_LINK_LIBRARIES(mycode mylib)
+TARGET_INCLUDE_DIRECTORIES(${PROJECT_NAME} PUBLIC $ENV{HOME}/git/libraries)
+
+TARGET_LINK_LIBRARIES(${PROJECT_NAME} mylib)
 
 
 ADD_CUSTOM_TARGET(debug
