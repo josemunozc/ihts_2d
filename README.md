@@ -22,5 +22,6 @@ Two options at the moment:
  - trl_2d_refined_2.msh : 39405 vertices, 41576 elements
  - trl_2d_refined.msh : 10335 vertices, 10980 elements
 
- ![Refined mesh 2](./input/trl_2d_refined_2.png)
- ![Refined mesh ](./input/trl_2d_refined.png)
+|||
+|-------|---------|
+| ![Refined mesh 2](./input/trl_2d_refined_2.png) | ![Refined mesh ](./input/trl_2d_refined.png) |
