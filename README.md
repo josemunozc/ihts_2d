@@ -16,12 +16,16 @@ To execute:
 ./mycode input.prm
 ```
 
+The program requires an `output` directory in the same location where the program is
+executed.
+
 ## Mesh files
-Two options at the moment:
+Current mesh::
 
- - trl_2d_refined_2.msh : 39405 vertices, 41576 elements
- - trl_2d_refined.msh : 10335 vertices, 10980 elements
+ - trl_refined_in_2d.msh : 2706 vertices, 3038 elements
 
-| trl_2d_refined_2.msh | trl_2d_refined.msh |
+This mesh can be further refined within the program if needed.
+
+| whole domain | zoom to pipes section |
 |----------------------|--------------------|
-| ![Refined mesh 2](./input/trl_2d_refined_2.png) | ![Refined mesh ](./input/trl_2d_refined.png) |
+| ![whole domain](./input/figures/trl_mesh_in_2d.png) | ![zoom to pipes section](./input/figures/trl_mesh_in_2d_pipes.png) |

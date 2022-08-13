@@ -424,11 +424,10 @@ namespace TRL
   road_heat_fluxes(1,std::vector<double>(number_of_surface_heat_and_mass_fluxes)),
   soil_heat_fluxes(1,std::vector<double>(number_of_surface_heat_and_mass_fluxes))
   {
-    if (argc!=2)
-      {
-	pcout << "Error. The program expects only one argument, the "
-	  "name of the file with the input parameters.\n";
-	throw 1;
+    if (argc!=2){
+        pcout << "Error. The program expects only one argument, the "
+                 "name of the file with the input parameters.\n";
+        throw 1;
       }
     const std::string input_filename = argv[1];
     pcout << "parameter file: " << input_filename << "\n";
@@ -456,68 +455,59 @@ namespace TRL
     mesh_path=input_path+"/"+parameters.mesh_dirname+"/"+parameters.mesh_filename;
     activation_type     =parameters.activation_type;
     
-    if (strcmp(type_of_weather_str.c_str(),weather_options[0].c_str())==0)
-      {
-	analytic_met_data=true;
-	type_of_weather=1;
-	met_data_type="";
+    if (strcmp(type_of_weather_str.c_str(),weather_options[0].c_str())==0){
+        analytic_met_data=true;
+        type_of_weather=1;
+        met_data_type="";
       }
-    else if (strcmp(type_of_weather_str.c_str(),weather_options[1].c_str())==0)
-      {
-	analytic_met_data=true;
-	type_of_weather=2;
-	met_data_type="";
+    else if (strcmp(type_of_weather_str.c_str(),weather_options[1].c_str())==0){
+        analytic_met_data=true;
+        type_of_weather=2;
+        met_data_type="";
       }
-    else if (strcmp(type_of_weather_str.c_str(),weather_options[2].c_str())==0)
-      {
-	analytic_met_data=true;
-	type_of_weather=3;
-	met_data_type="";
+    else if (strcmp(type_of_weather_str.c_str(),weather_options[2].c_str())==0){
+        analytic_met_data=true;
+        type_of_weather=3;
+        met_data_type="";
       }
-    else if (strcmp(type_of_weather_str.c_str(),weather_options[3].c_str())==0)
-      {
-	analytic_met_data=true;
-	type_of_weather=4;
-	met_data_type="";
+    else if (strcmp(type_of_weather_str.c_str(),weather_options[3].c_str())==0){
+        analytic_met_data=true;
+        type_of_weather=4;
+        met_data_type="";
       }
-    else if (strcmp(type_of_weather_str.c_str(),weather_options[4].c_str())==0)
-      {
-	analytic_met_data=false;
-	type_of_weather=-1;
-	met_data_type="trl_met_data";
+    else if (strcmp(type_of_weather_str.c_str(),weather_options[4].c_str())==0){
+        analytic_met_data=false;
+        type_of_weather=-1;
+        met_data_type="trl_met_data";
       }
-    else if (strcmp(type_of_weather_str.c_str(),weather_options[5].c_str())==0)
-      {
-	analytic_met_data=false;
-	type_of_weather=-1;
-	met_data_type="met_office_data";
+    else if (strcmp(type_of_weather_str.c_str(),weather_options[5].c_str())==0){
+        analytic_met_data=false;
+        type_of_weather=-1;
+        met_data_type="met_office_data";
       }
-    else
-      {
-	pcout << "Error. Wrong type of weather.\n";
-	throw -1;
+    else{
+        pcout << "Error. Wrong type of weather.\n";
+        throw -1;
       }
 
     std::stringstream out_phs;
     out_phs << author << "_ph" << preheating_step << "_2d_"
-	    << "ws_" << shading_factor_value << "_"
-	    << "kf_" << thermal_conductivity_factor << "_"
-	    << type_of_weather_str << "_";
+            << "ws_" << shading_factor_value << "_"
+            << "kf_" << thermal_conductivity_factor << "_"
+            << type_of_weather_str << "_";
     std::stringstream in_phs;
     in_phs << author << "_ph" << preheating_step-1 << "_2d_"
-	   << "ws_" << shading_factor_value << "_"
-	   << "kf_" << thermal_conductivity_factor << "_"
-	   << type_of_weather_str << "_";
+           << "ws_" << shading_factor_value << "_"
+           << "kf_" << thermal_conductivity_factor << "_"
+           << type_of_weather_str << "_";
 
-    if (fixed_bc_at_bottom==true)
-      {
-	out_phs << "fx";
-	in_phs  << "fx";
+    if (fixed_bc_at_bottom==true){
+        out_phs << "fx";
+        in_phs  << "fx";
       }
-    else
-      {
-	out_phs << "fr";
-	in_phs  << "fr";
+    else{
+        out_phs << "fr";
+        in_phs  << "fr";
       }
 
     preheating_output_filename=out_phs.str();
@@ -526,118 +516,110 @@ namespace TRL
     time=0.;
     timestep_number=0;
     timestep_number_max=0;
-    if (preheating_step==1 && time_step==3600)
-      {
-	time_step=3600;
-	timestep_number_max=2;//70079; // 8 years
-	initial_date.reserve(6);
-	initial_date.push_back(1);
-	initial_date.push_back(9);
-	initial_date.push_back(1994);
-	initial_date.push_back(0);
-	initial_date.push_back(30);
-	initial_date.push_back(0);
+    if (preheating_step==1 && time_step==3600){
+        time_step=3600;
+        timestep_number_max=2;//70079; // 8 years
+        initial_date.reserve(6);
+        initial_date.push_back(1);
+        initial_date.push_back(9);
+        initial_date.push_back(1994);
+        initial_date.push_back(0);
+        initial_date.push_back(30);
+        initial_date.push_back(0);
       }
-    else if (preheating_step==2 && time_step==3600)
-      {
-	timestep_number_max=2;//5804;
-	initial_date.reserve(6);
-	initial_date.push_back(1);
-	initial_date.push_back(9);
-	initial_date.push_back(2004);
-	initial_date.push_back(0);
-	initial_date.push_back(30);
-	initial_date.push_back(0);
+    else if (preheating_step==2 && time_step==3600){
+        timestep_number_max=2;//5804;
+        initial_date.reserve(6);
+        initial_date.push_back(1);
+        initial_date.push_back(9);
+        initial_date.push_back(2004);
+        initial_date.push_back(0);
+        initial_date.push_back(30);
+        initial_date.push_back(0);
       }
-    else if (preheating_step==3 && time_step==3600)
-      {
-	timestep_number_max=2;//2735;
-	initial_date.reserve(6);
-	initial_date.push_back(1);
-	initial_date.push_back(5);
-	initial_date.push_back(2005);
-	initial_date.push_back(0);
-	initial_date.push_back(30);
-	initial_date.push_back(0);
+    else if (preheating_step==3 && time_step==3600){
+        timestep_number_max=2;//2735;
+        initial_date.reserve(6);
+        initial_date.push_back(1);
+        initial_date.push_back(5);
+        initial_date.push_back(2005);
+        initial_date.push_back(0);
+        initial_date.push_back(30);
+        initial_date.push_back(0);
       }
-    else if (preheating_step==4)
-      {
-	time_step=900;
-	timestep_number_max=2;//7964;
-	initial_date.reserve(6);
-	initial_date.push_back(23);
-	initial_date.push_back(8);
-	initial_date.push_back(2005);
-	initial_date.push_back(0);
-	initial_date.push_back(30);
-	initial_date.push_back(0);
+    else if (preheating_step==4){
+        time_step=900;
+        timestep_number_max=2;//7964;
+        initial_date.reserve(6);
+        initial_date.push_back(23);
+        initial_date.push_back(8);
+        initial_date.push_back(2005);
+        initial_date.push_back(0);
+        initial_date.push_back(30);
+        initial_date.push_back(0);
       }
-    else if (preheating_step==5)
-      {
-	time_step=900;
-	timestep_number_max=20;//9500;
-	initial_date.reserve(6);
-	initial_date.push_back(14);
-	initial_date.push_back(11);
-	initial_date.push_back(2005);
-	initial_date.push_back(0);
-	initial_date.push_back(30);
-	initial_date.push_back(0);
+    else if (preheating_step==5){
+        time_step=900;
+        timestep_number_max=20;//9500;
+        initial_date.reserve(6);
+        initial_date.push_back(14);
+        initial_date.push_back(11);
+        initial_date.push_back(2005);
+        initial_date.push_back(0);
+        initial_date.push_back(30);
+        initial_date.push_back(0);
       }
-    else if (preheating_step==6)
-      {
-	time_step=3600;
-	timestep_number_max=2;//1559;
-	initial_date.reserve(6);
-	initial_date.push_back(21);
-	initial_date.push_back(2);
-	initial_date.push_back(2006);
-	initial_date.push_back(0);
-	initial_date.push_back(30);
-	initial_date.push_back(0);
+    else if (preheating_step==6){
+        time_step=3600;
+        timestep_number_max=2;//1559;
+        initial_date.reserve(6);
+        initial_date.push_back(21);
+        initial_date.push_back(2);
+        initial_date.push_back(2006);
+        initial_date.push_back(0);
+        initial_date.push_back(30);
+        initial_date.push_back(0);
       }
-    else if (preheating_step==7)
-      {
-	time_step=900;
-	timestep_number_max=2;//18044;
-	initial_date.reserve(6);
-	initial_date.push_back(27);
-	initial_date.push_back(4);
-	initial_date.push_back(2006);
-	initial_date.push_back(0);
-	initial_date.push_back(30);
-	initial_date.push_back(0);
+    else if (preheating_step==7){
+        time_step=900;
+        timestep_number_max=2;//18044;
+        initial_date.reserve(6);
+        initial_date.push_back(27);
+        initial_date.push_back(4);
+        initial_date.push_back(2006);
+        initial_date.push_back(0);
+        initial_date.push_back(30);
+        initial_date.push_back(0);
       }
-    else if (preheating_step==8)
-      {
-	time_step=900;
-	timestep_number_max=2;//11516;
-	initial_date.reserve(6);
-	initial_date.push_back(1);
-	initial_date.push_back(11);
-	initial_date.push_back(2006);
-	initial_date.push_back(0);
-	initial_date.push_back(30);
-	initial_date.push_back(0);
+    else if (preheating_step==8){
+        time_step=900;
+        timestep_number_max=2;//11516;
+        initial_date.reserve(6);
+        initial_date.push_back(1);
+        initial_date.push_back(11);
+        initial_date.push_back(2006);
+        initial_date.push_back(0);
+        initial_date.push_back(30);
+        initial_date.push_back(0);
       }
-    else
-      {
-	pcout << "Wrong preheating step and/or time step\n";
-	throw -1;
+    else{
+	    pcout << "Wrong preheating step and/or time step\n";
+	    throw -1;
       }
+
     time_max=time_step*timestep_number_max;
 
-
     pcout << "Solving problem with the following data:\n"
-	  << "\tAuthor: " << author << "\n"
-	  << "\tpreheating_step: " << preheating_step << "\n"
-	  << "\ttime step: " << time_step << "\n"
-	  << "\tshading factor: " << shading_factor_value << "\n"
-	  << "\tbottom_bc: ";
+          << "\tAuthor: " << author << "\n"
+          << "\tpreheating_step: " << preheating_step << "\n"
+          << "\ttime step: " << time_step << "\n"
+          << "\tshading factor: " << shading_factor_value << "\n"
+          << "\tbottom_bc: ";
+
     if (fixed_bc_at_bottom==true)
-      pcout << "true\n";
+        pcout << "true\n";
     else
-      pcout << "false\n";
+        pcout << "false\n";
 
     pcout << "\tinsulation: ";
     if (insulation==true)
@@ -2014,30 +1996,27 @@ namespace TRL
       met_data[timestep_number][2]*=0.1;
   }
 
-  template<int dim>
-  void Heat_Pipe<dim>::initial_condition()
-  {
-    if (preheating_step>1)
-      {
-          std::ifstream file (("./preheatings/"+preheating_input_filename).c_str());
-          if (!file.is_open())
-          {
-            pcout << "Initial condition file not found: "
-        	  << "./preheatings/" << preheating_input_filename
-        	  << std::endl;
-            throw 2;
-          }
+    template<int dim>
+    void Heat_Pipe<dim>::initial_condition()
+    {
+    if (preheating_step>1){
+        std::ifstream file (("./preheatings/"+preheating_input_filename).c_str());
+        if (!file.is_open()){
+          pcout << "Initial condition file not found: "
+                << "./preheatings/" << preheating_input_filename
+                << std::endl;
+          throw 2;
+        }
 
-	Vector<double> initial_condition;
-	initial_condition.block_read (file);
-	old_solution=initial_condition;
+        Vector<double> initial_condition;
+        initial_condition.block_read (file);
+        old_solution=initial_condition;
 	
-	file.close();
-	if (file.is_open())
-	  throw 3;
+        file.close();
+        if (file.is_open())
+            throw 3;
       }
-    else
-      {
+    else{
         VectorTools::project(dof_handler,
 	        constraints, QGauss<dim>(3),
 	        ConstantFunction<dim>(10.),
@@ -2046,11 +2025,11 @@ namespace TRL
         solution=old_solution;
         solution.compress(VectorOperation::insert);
       }
-  }
+    }
 
-  template<int dim>
-  void Heat_Pipe<dim>::run()
-  {
+    template<int dim>
+    void Heat_Pipe<dim>::run()
+    {
     TimerOutput timer (mpi_communicator,
 		       pcout,
 		       TimerOutput::summary,
@@ -2164,13 +2143,6 @@ namespace TRL
          double tolerance_storage___avg_norm=-1000.;
          double tolerance_limit_collector=0.001;//%
          double tolerance_limit_storage__=0.001;//%
-
-
-
-
-
-
-
          /*
           * Then those corresponding to the pipe system convergence. We too
           * compare the heat flux at the collector and storage pipes in the
@@ -2193,15 +2165,6 @@ namespace TRL
           * every time the system is assembled and when the system converges
           * it will store the final heat fluxes for that time step.
           */
-
-
-
-
-
-
-
-
-
           for (unsigned int i=0; i<number_of_pipes; i++)
             current__new_pipe_heat_flux[i]=0.;
 
@@ -2284,7 +2247,7 @@ namespace TRL
     	      tolerance_storage___avg_norm
     		=fabs(1.-current__new_storage___avg_norm/previous_new_storage___avg_norm);
     	    }
-    	    //==========================================================================================
+    	    //==========================================================================
     	    /*-----solve pipe system ------*/
     	    if (step==0)
     	      {
