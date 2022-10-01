@@ -518,7 +518,7 @@ namespace TRL
     timestep_number_max=0;
     if (preheating_step==1 && time_step==3600){
         time_step=3600;
-        timestep_number_max=2;//70079; // 8 years
+        timestep_number_max=70079; // 8 years
         initial_date.reserve(6);
         initial_date.push_back(1);
         initial_date.push_back(9);
@@ -1450,8 +1450,7 @@ namespace TRL
   }
 
   template<int dim>
-  void Heat_Pipe<dim>::output_results()
-  {
+  void Heat_Pipe<dim>::output_results() {
     const Vector<double> localized_old_solution (old_solution);
     const Vector<double> localized_new_solution (solution);
     /*
@@ -1465,8 +1464,8 @@ namespace TRL
     
     const QGauss<dim> quadrature_formula(3);
     FEValues<dim> fe_values(fe, quadrature_formula,
-    			    update_values | update_gradients |
-    			    update_quadrature_points | update_JxW_values);
+                    update_values | update_gradients |
+                    update_quadrature_points | update_JxW_values);
     const unsigned int n_q_points=quadrature_formula.size();
     std::vector<double> old_function_values(n_q_points);
     std::vector<double> new_function_values(n_q_points);
@@ -1475,56 +1474,51 @@ namespace TRL
     typename DoFHandler<dim>::active_cell_iterator
       cell = dof_handler.begin_active(),
       endc = dof_handler.end();
-    for (; cell!=endc; ++cell)
-      {
-    	if (cell->subdomain_id()==this_mpi_process)
-    	  {
-	    fe_values.reinit(cell);
-	    fe_values.get_function_values(localized_old_solution,old_function_values);
-	    fe_values.get_function_values(localized_new_solution,new_function_values);
-	    
-    	    if (material_type=="Bulk")
-    	      {
-    		Material material(find_material_name(cell->material_id()));
-    		thermal_conductivity[vector_index]=
-    		  material.thermal_conductivity();
-    		volumetric_heat_capacity[vector_index]=
-    		  material.volumetric_heat_capacity(theta*new_function_values[0]+
-						    (1.-theta)*old_function_values[0]);
-    	      }
-    	    else
-    	      {
-    		PorousMaterial material(find_material_name(cell->material_id()));
-    		thermal_conductivity[vector_index]=
-    		  material.thermal_conductivity();
-    		volumetric_heat_capacity[vector_index]=
-    		  material.volumetric_heat_capacity(theta*new_function_values[0]+
-						    (1.-theta)*old_function_values[0]);
-    	      }
-	    
-	    material_id[vector_index]=cell->material_id();
-	
-	    if (cell_index_to_new_previous_surface_temperature.find(cell)!=
-		cell_index_to_new_previous_surface_temperature.end())
-	      boundary_id[vector_index]=cell->face(cell_index_to_face_index[cell])->boundary_id();
-	    else
-	      boundary_id[vector_index]=0;
-	  }
-	vector_index++;
+    for (; cell!=endc; ++cell) {
+      if (cell->subdomain_id()==this_mpi_process) {
+        fe_values.reinit(cell);
+        fe_values.get_function_values(localized_old_solution,old_function_values);
+        fe_values.get_function_values(localized_new_solution,new_function_values);
+
+      if (material_type=="Bulk") {
+        Material material(find_material_name(cell->material_id()));
+          thermal_conductivity[vector_index]=
+            material.thermal_conductivity();
+          volumetric_heat_capacity[vector_index]=
+            material.volumetric_heat_capacity(theta*new_function_values[0]+
+            (1.-theta)*old_function_values[0]);
+       }
+      else {
+        PorousMaterial material(find_material_name(cell->material_id()));
+        thermal_conductivity[vector_index]=
+          material.thermal_conductivity();
+        volumetric_heat_capacity[vector_index]=
+          material.volumetric_heat_capacity(theta*new_function_values[0]+
+          (1.-theta)*old_function_values[0]);
+       }
+
+      material_id[vector_index]=cell->material_id();
+
+      if (cell_index_to_new_previous_surface_temperature.find(cell)!=
+            cell_index_to_new_previous_surface_temperature.end())
+        boundary_id[vector_index]=cell->face(cell_index_to_face_index[cell])->boundary_id();
+      else
+        boundary_id[vector_index]=0;
       }
-    
-    for (unsigned int i=0; i<vector_index; i++)
-      {
-    	material_id[i]=
-    	  Utilities::MPI::sum(material_id[i],mpi_communicator);
-	thermal_conductivity[i]=
-	  Utilities::MPI::sum(thermal_conductivity[i],mpi_communicator);
-	volumetric_heat_capacity[i]=
-	  Utilities::MPI::sum(volumetric_heat_capacity[i],mpi_communicator);
-	boundary_id[i]=
-	  Utilities::MPI::sum(boundary_id[i],mpi_communicator);
-      }
-    
+    vector_index++;
+    }
+
+    for (unsigned int i=0; i<vector_index; i++) {
+      material_id[i]=
+        Utilities::MPI::sum(material_id[i],mpi_communicator);
+      thermal_conductivity[i]=
+        Utilities::MPI::sum(thermal_conductivity[i],mpi_communicator);
+      volumetric_heat_capacity[i]=
+        Utilities::MPI::sum(volumetric_heat_capacity[i],mpi_communicator);
+      boundary_id[i]=
+        Utilities::MPI::sum(boundary_id[i],mpi_communicator);
+    }
+
     DataOut<dim> data_out;
     data_out.attach_dof_handler(dof_handler);
     data_out.add_data_vector(localized_new_solution,"temperature");
@@ -1535,7 +1529,7 @@ namespace TRL
     GridTools::get_subdomain_association(triangulation,partition_int);
     const Vector<double> partitioning (partition_int.begin (),partition_int.end ());
     data_out.add_data_vector (partitioning, "partitioning");
-    
+
     data_out.add_data_vector(material_id             ,"material_id");
     data_out.add_data_vector(thermal_conductivity    ,"thermal_conductivity");
     data_out.add_data_vector(volumetric_heat_capacity,"volumetric_heat_capacity");
@@ -1553,27 +1547,27 @@ namespace TRL
     std::ofstream output(filename.c_str());
     data_out.write_vtu(output);
 
-    if (this_mpi_process==0)
-      {
-	std::vector<std::string> filenames;
-	for (unsigned int i=0; i<n_mpi_processes; ++i)
-	  filenames.push_back ("solution-" + preheating_output_filename + "-"
-			       + Utilities::int_to_string(timestep_number,4)
-			       + "." + Utilities::int_to_string(i,3)
-			       + ".vtu");
+    if (this_mpi_process==0) {
+      std::vector<std::string> filenames;
+      for (unsigned int i=0; i<n_mpi_processes; ++i)
+        filenames.push_back ("solution-" + preheating_output_filename + "-"
+          + Utilities::int_to_string(timestep_number,4)
+          + "." + Utilities::int_to_string(i,3)
+          + ".vtu");
 
-	const std::string
-	  pvtu_master_filename = ("output/solution-" + preheating_output_filename + "-" 
-				  + Utilities::int_to_string(timestep_number,4) + ".pvtu");
-	std::ofstream pvtu_master (pvtu_master_filename.c_str());
-	data_out.write_pvtu_record (pvtu_master, filenames);
+      const std::string
+        pvtu_master_filename = ("output/solution-" + preheating_output_filename + "-" 
+          + Utilities::int_to_string(timestep_number,4) + ".pvtu");
+      std::ofstream pvtu_master (pvtu_master_filename.c_str());
+      data_out.write_pvtu_record (pvtu_master, filenames);
 
-	static std::vector<std::pair<double,std::string> > times_and_names;
-	times_and_names.push_back (std::pair<double,std::string> (time-time_step, pvtu_master_filename));
-	std::ofstream pvd_output ("solution.pvd");
-	DataOutBase::write_pvd_record (pvd_output, times_and_names);
-      }
-  }
+      static std::vector<std::pair<double,std::string> > times_and_names;
+      times_and_names.push_back (std::pair<double,std::string> (time-time_step,
+                  pvtu_master_filename));
+      std::ofstream pvd_output ("solution.pvd");
+      DataOutBase::write_pvd_record (pvd_output, times_and_names);
+    }
+}
 
   template<int dim>
   void Heat_Pipe<dim>::fill_output_vectors()
@@ -2504,12 +2498,13 @@ namespace TRL
     	{
     	  /*
     	   * Output the solution at the beggining, end and every
-    	   * certain time stepsy:
+    	   * certain time steps:
     	   */
-    	  if (parameters.output_vtu_files && 
-	      (preheating_step==1 /*&& (date_and_time[timestep_number][2]==2013 || (date_and_time[timestep_number][2]==2012 && date_and_time[timestep_number][1]>=9)))*/
-	       ||
-	       preheating_step>1))
+    	  if ((parameters.output_vtu_files &&
+               (preheating_step==1 && (date_and_time[timestep_number][2]==2013 ||
+                                       (date_and_time[timestep_number][2]==2012 && 
+                                        date_and_time[timestep_number][1]>=9))))
+               || preheating_step>1)
     	    {
     	      TimerOutput::Scope timer_section (timer,"Output results");
     	      output_results();
