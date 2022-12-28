@@ -1,0 +1,4 @@
+logs/e.*
+logs/o.*
+input/met_data
+build/
