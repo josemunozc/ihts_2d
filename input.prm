@@ -1,5 +1,5 @@
 subsection time stepping
-  set time step	 =  3600  #
+  set time step	 = 900  # Modify this <---------
   set theta      =   0.5  #
 end
 
@@ -9,11 +9,11 @@ end
 
 subsection options
   set author             = Best #  
-  set preheating step    = 1 #
+  set preheating step    = 8 # Modify this <---------
   set shading factor     = 0.5 #
   set fixed bc at bottom = false #
-  set with insulation    = false #
-  set with pipe system   = false #
+  set with insulation    = true # Modify this <---------
+  set with pipe system   = true # Modify this <---------
   set weather type       = emd-trl #
   set thermal conductivity factor = 1.0 #
   set input path       = /home/c.c1045890/git/ground_heat_storage_2d_updated/input #

@@ -39,6 +39,29 @@ step (8 years).
 - preheating step 1. 70079 hourly time steps (8 years). 
   Purpose: reach a stationary state in the domain based on given meteorological and
   boundary conditions.
+- preheating step 2. 5804 hourly time steps (9 months)
+  Purpose: no difference in conditions with the previous period but it works to fill
+  the gap until the next period with different conditions.
+- preheating step 3. 2735 hourly time steps (about 3.7 months, from May 1st to Aug 23).
+  Purpose: this covers the period when the insulation layer and pipe system were put in
+  place in early May 2005 until the system was actually activated by the end of August
+  2005. The soil thermal profile was impacted by the presence of the insulation layer
+  as it wasn't allowed to gain heat at usual over the summer before the system was turned
+  on.
+- preheating step 4. 7964 time steps of 15 min (from 23/08/2005 to 14/11/2005).
+  Purpose: 1st charging period. The system is activated to collect thermal energy from
+  the pavement and transfer it to the volume under the insulation layer. There are two
+  ways to activate the system: automatic and forced. In the former method the system
+  is activated automatically if a certain criteria is meet (the average temperature
+  difference between the collector and storage pipes). For the latter, the system is
+  forced to be active in certain ranges of time (i.e. between noon and 10pm everyday).
+- preheating step 5. 9500 time steps of 15 min (from 15/11/2005 to 20/02/2006).
+  Purpose: 1st usage period. Thermal energy is transferred from the storage area to
+  the collector pipes to warm up the pavement. System activation is similar to the
+  description in preheating step 4.
+- preheating step 6. 1559 hourly time steps (from 21/02/2006 to 28/04/2006).
+  Purpose: During this period the system was stopped for repairs.
+- preheating step 7. 
 
 
 ## Visualizing results
@@ -51,5 +74,27 @@ time steps. So in ParaView, only solution.pvd needs to be opened. See dealli
 documentation for [step 18](https://www.dealii.org/current/doxygen/deal.II/step_18.html) 
 
 
+## Building the code
+Assuming the libraries listed in the Requirements section are available, it should be as simple as:
 
+```
+mkdir build
+cd build
+cmake ..
+make
+```
 
+## Results
+
+Job IDs reference SLURM IDs on the Hawk cluster.
+
+| Job ID    | Description  | time step | Insulation | system active? |
+|-----------|--------------|-----------|------------|----------------|
+| 54986200  | preheating 1 | 3600      | False      | False          |
+| 55042331  | preheating 2 | 3600      | False      | False          |
+| 55042396  | preheating 3 | 3600      |  True      | False          |
+| 55042415  | preheating 4 |  900      |  True      |  True          |
+| 55044683  | preheating 5 |  900      |  True      |  True          |
+| 55044754  | preheating 6 | 3600      |  True      | False          |
+| 55044758  | preheating 7 |  900      |  True      |  True          |
+| 55046962  | preheating 8 |  900      |  True      |  True          |

@@ -30,5 +30,6 @@ mkdir input/met_data
 mkdir output
 cp $root/input/meshes/trl_mesh_in_2d.msh input/meshes
 cp -r $root/input/met_data/trl input/met_data
+cp -r $root/preheatings .
 
 mpirun -np ${SLURM_NTASKS} ./mycode input.prm
